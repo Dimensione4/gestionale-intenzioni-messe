@@ -1,0 +1,8 @@
+textarea { font: inherit; padding: 10px 14px; border: 2px solid #b8bec5; border-radius: 9px; resize: vertical; }
+.wide { grid-column: 1 / -1; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 28px; background: #0c1c2cb8; }
+.dialog { width: min(820px, 95vw); max-height: 92vh; overflow: auto; padding: 30px; background: #fff; border-radius: 18px; box-shadow: 0 24px 70px #0005; }
+.dialog-head { display: flex; align-items: start; justify-content: space-between; margin-bottom: 22px; }
+.dialog-head button, .actions > button:not(.primary) { min-height: 48px; padding: 8px 16px; border: 1px solid #aaa; border-radius: 8px; background: #fff; }
+.actions { display: flex; justify-content: flex-end; gap: 12px; }
+.primary:disabled { opacity: .65; cursor: wait; }
