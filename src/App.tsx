@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
@@ -193,10 +193,21 @@ function ReasonDialog({title,body,label,confirmLabel,close,confirmed}:{title:str
   return <div className="modal-backdrop"><div className="dialog confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="reason-title"><h2 id="reason-title">{title}</h2><p>{body}</p><label>{label}<input required autoFocus value={reason} onChange={e=>setReason(e.target.value)}/></label>{error&&<p className="error">{error}</p>}<div className="actions"><button onClick={close}>Annulla</button><button disabled={busy} className="danger-button" onClick={async()=>{if(!reason.trim())return setError("Il motivo è obbligatorio.");setBusy(true);try{await confirmed(reason)}catch(e){setError(String(e));setBusy(false)}}}>{busy?"Operazione in corso…":confirmLabel}</button></div></div></div>;
 }
 
+export function receiptPageHeightMm(pixelHeight:number){
+  return Math.max(80,Math.ceil(pixelHeight*25.4/96)+4);
+}
+
 function ReceiptPreview({item,settings,close,configure}:{item:MassIntention;settings:ParishSettings|null;close:()=>void;configure?:()=>void}){
+  const receiptRef=useRef<HTMLDivElement>(null),paperWidth=settings?.receipt_paper_size==="80mm"?80:58;
+  const [pageHeight,setPageHeight]=useState(120);
+  function printReceipt(){
+    setPageHeight(receiptPageHeightMm(receiptRef.current?.scrollHeight??0));
+    requestAnimationFrame(()=>window.print());
+  }
   return <div className="modal-backdrop"><div className="dialog receipt-dialog" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
+    <style data-receipt-page-size>{`@media print { @page { size: ${paperWidth}mm ${pageHeight}mm; margin: 0; } }`}</style>
     <div className="dialog-head no-print"><div><p className="eyebrow">Documento termico</p><h2 id="receipt-title">Anteprima ricevuta</h2></div><button className="close-button" onClick={close}><X/> Chiudi anteprima</button></div>
-    <div className={`receipt ${settings?.receipt_paper_size??"58mm"}`}><section className="receipt-parish"><h2>{settings?.parish_name??"Parrocchia"}</h2>
+    <div ref={receiptRef} className={`receipt ${settings?.receipt_paper_size??"58mm"}`}><section className="receipt-parish"><h2>{settings?.parish_name??"Parrocchia"}</h2>
       {settings?.receipt_show_address!==0&&settings?.address&&<p>{settings.address}</p>}
       {settings?.receipt_show_contacts!==0&&(settings?.phone||settings?.email)&&<p>{[settings.phone,settings.email].filter(Boolean).join(" · ")}</p>}
       {settings?.receipt_show_priest!==0&&(settings?.priest_first_name||settings?.priest_last_name)&&<p>Parroco: Don {`${settings.priest_first_name} ${settings.priest_last_name}`.trim()}</p>}</section>
@@ -206,7 +217,7 @@ function ReceiptPreview({item,settings,close,configure}:{item:MassIntention;sett
       {settings?.receipt_show_mass!==0&&<section className="receipt-row"><span>Santa Messa</span><strong>{item.mass_date}, ore {item.mass_time}</strong></section>}
       {settings?.receipt_show_offering!==0&&<section className="receipt-row"><span>Offerta</span><strong>€ {(item.offering_cents/100).toFixed(2)}</strong></section>}
       {settings?.receipt_custom_message&&<p className="receipt-message">{settings.receipt_custom_message}</p>}</div>
-    <div className="receipt-dialog-actions no-print">{configure&&<button className="secondary-button" onClick={()=>{close();configure()}}><Cog/> Configura ricevuta</button>}<button className="primary" onClick={()=>window.print()}><Printer/> Stampa ricevuta</button></div>
+    <div className="receipt-dialog-actions no-print">{configure&&<button className="secondary-button" onClick={()=>{close();configure()}}><Cog/> Configura ricevuta</button>}<button className="primary" onClick={printReceipt}><Printer/> Stampa ricevuta</button></div>
   </div></div>;
 }
 
