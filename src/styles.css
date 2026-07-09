@@ -87,6 +87,18 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .settings-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .danger-zone { margin-top: 36px; padding: 22px; border: 1px solid #d7a4a7; border-radius: 10px; background: #fff7f7; }
 .danger-zone h3 { color: var(--danger); }
+.schedule-editor { display: grid; gap: 12px; margin: 24px 0; }
+.schedule-day { display: grid; grid-template-columns: 150px minmax(180px, 1fr) minmax(270px, .8fr); gap: 18px; align-items: center; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.schedule-day > div:first-child { display: grid; }
+.schedule-day > div:first-child span { color: var(--muted); font-size: 14px; }
+.schedule-times { display: flex; flex-wrap: wrap; gap: 8px; }
+.schedule-times > span { min-height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 6px 5px 11px; color: var(--primary); border: 1px solid #9eb4c5; border-radius: 8px; background: #f1f7fb; font-weight: 700; }
+.schedule-times button { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; color: #6c2630; border: 0; border-radius: 6px; background: #fff; }
+.schedule-times svg { width: 18px; height: 18px; }
+.schedule-add { display: flex; align-items: flex-end; gap: 8px; }
+.schedule-add label { flex: 1; gap: 3px; font-size: 14px; }
+.schedule-add input { min-height: 46px; }
+.schedule-add .secondary-button { min-height: 46px; padding-inline: 12px; }
 .schedule-list { display: grid; gap: 16px; }
 .time-slot { overflow: hidden; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
 .time-slot-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; background: #eef1f4; }
@@ -125,6 +137,8 @@ section > header { display: flex; justify-content: space-between; align-items: c
   .shell { grid-template-columns: 230px minmax(0, 1fr); }
   .settings-layout { grid-template-columns: 1fr; }
   .settings-nav { position: static; display: flex; flex-wrap: wrap; }
+  .schedule-day { grid-template-columns: 125px 1fr; }
+  .schedule-add { grid-column: 1 / -1; }
   .monthly-list-head, .monthly-list > button { grid-template-columns: 135px 70px minmax(200px, 1fr) 110px; font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {

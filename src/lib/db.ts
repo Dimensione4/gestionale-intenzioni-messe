@@ -61,7 +61,8 @@ export async function loadArchive():Promise<MassIntention[]> {
 export async function cancelReceipt(intentionId:number,reason:string) {
   if(!reason.trim())throw new Error("Indica il motivo dell’annullamento.");
   const database=await db();
-  await database.execute("UPDATE receipts SET status='cancelled',cancelled_reason=$1,updated_at=datetime('now') WHERE intention_id=$2",[reason,intentionId]);
+  const result=await database.execute("UPDATE receipts SET status='cancelled',cancelled_reason=$1,updated_at=datetime('now') WHERE intention_id=$2",[reason,intentionId]);
+  if(result.rowsAffected===0)throw new Error("Questa intenzione non ha una ricevuta associata. Elimina l’intenzione oppure genera una nuova ricevuta.");
   await database.execute("INSERT INTO audit_logs(action,entity_type,entity_id,details,created_at) VALUES('cancel','receipt',$1,$2,datetime('now'))",[intentionId,reason]);
 }
 

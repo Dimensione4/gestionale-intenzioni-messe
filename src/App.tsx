@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Printer, RotateCcw, Save, Settings as Cog, Shield, Trash2 } from "lucide-react";
+import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { cancelReceipt, createBackup, createIntention, deleteIntention, loadArchive, loadAuditLogs, loadIntentions, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention } from "./lib/db";
@@ -129,10 +129,13 @@ function IntentionDialog({initialDate,initialTime,initialRecord,repository,close
   </div></div>;
 }
 
-function Archive({settings}:{settings:ParishSettings|null}){
-  const [items,setItems]=useState<MassIntention[]>([]),[logs,setLogs]=useState<AuditLog[]>([]),[view,setView]=useState<"records"|"history">("records"),[query,setQuery]=useState(""),[receipt,setReceipt]=useState<MassIntention|null>(null),[restoring,setRestoring]=useState<MassIntention|null>(null),[cancelling,setCancelling]=useState<MassIntention|null>(null),[error,setError]=useState("");
-  const refresh=()=>loadArchive().then(setItems).catch(e=>setError(String(e)));
-  useEffect(()=>{refresh();loadAuditLogs().then(setLogs)},[]);
+type ArchiveRepository={list:typeof loadArchive;logs:typeof loadAuditLogs;cancel:typeof cancelReceipt;remove:typeof deleteIntention;restore:typeof restoreIntention};
+const defaultArchiveRepository:ArchiveRepository={list:loadArchive,logs:loadAuditLogs,cancel:cancelReceipt,remove:deleteIntention,restore:restoreIntention};
+
+export function Archive({settings,repository=defaultArchiveRepository}:{settings:ParishSettings|null;repository?:ArchiveRepository}){
+  const [items,setItems]=useState<MassIntention[]>([]),[logs,setLogs]=useState<AuditLog[]>([]),[view,setView]=useState<"records"|"history">("records"),[query,setQuery]=useState(""),[receipt,setReceipt]=useState<MassIntention|null>(null),[restoring,setRestoring]=useState<MassIntention|null>(null),[cancelling,setCancelling]=useState<MassIntention|null>(null),[deleting,setDeleting]=useState<MassIntention|null>(null),[error,setError]=useState("");
+  const refresh=()=>repository.list().then(setItems).catch(e=>setError(String(e)));
+  useEffect(()=>{refresh();repository.logs().then(setLogs)},[]);
   const normalized=query.toLowerCase().trim();
   const visible=items.filter(i=>!normalized||[i.offerer_first_name,i.offerer_last_name,i.intention_text,i.remembered_person,String(i.receipt_number??"")].some(v=>v?.toLowerCase().includes(normalized)));
   function exportCsv(){
@@ -145,12 +148,13 @@ function Archive({settings}:{settings:ParishSettings|null}){
     {view==="records"?<div className="card"><label>Cerca per nome, testo o numero ricevuta<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Inizia a scrivere…"/></label>
     {error&&<p className="error">{error}</p>}<div className="archive-list">{visible.length===0?<p>Nessun risultato.</p>:visible.map(item=><article key={item.id} className={item.status==="deleted"?"record-deleted":""}>
       <div><strong>{item.mass_date} · ore {item.mass_time}</strong><p>{item.intention_text}</p><small>{`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||"Offerente non indicato"} · € {(item.offering_cents/100).toFixed(2)}</small></div>
-      <div className="receipt-actions"><span className={item.status==="deleted"||item.receipt_status==="cancelled"?"cancelled":""}>{item.status==="deleted"?"Eliminata":"Ricevuta n. "+item.receipt_number+(item.receipt_status==="cancelled"?" · annullata":"")}</span>{item.status==="deleted"?<button onClick={()=>setRestoring(item)}><RotateCcw/> Ripristina intenzione</button>:<><button onClick={()=>setReceipt(item)}><Printer/> Anteprima / stampa</button>{item.receipt_status!=="cancelled"&&<button onClick={()=>setCancelling(item)}>Annulla ricevuta</button>}</>}</div>
+      <div className="receipt-actions"><span className={item.status==="deleted"||item.receipt_status==="cancelled"?"cancelled":""}>{item.status==="deleted"?"Eliminata":item.receipt_number==null?"Senza ricevuta":"Ricevuta n. "+item.receipt_number+(item.receipt_status==="cancelled"?" · annullata":"")}</span>{item.status==="deleted"?<button className="restore-action" onClick={()=>setRestoring(item)}><RotateCcw/> Ripristina intenzione</button>:item.receipt_number==null?<button className="delete-action" onClick={()=>setDeleting(item)}><Trash2/> Elimina intenzione</button>:<><button className="preview-action" onClick={()=>setReceipt(item)}><Printer/> Anteprima e stampa</button>{item.receipt_status!=="cancelled"&&<button className="cancel-action" onClick={()=>setCancelling(item)}>Annulla ricevuta</button>}</>}</div>
     </article>)}</div></div>
     :<div className="history-list">{logs.length===0?<p className="empty-state">Nessuna modifica registrata.</p>:logs.map(log=><article key={log.id}><span className={`history-action ${log.action}`}>{historyActionLabel(log.action)}</span><div><strong>{log.details||log.entity_type}</strong><small>{new Date(log.created_at.replace(" ","T")+"Z").toLocaleString("it-IT")}</small></div></article>)}</div>}
     {receipt&&<ReceiptPreview item={receipt} settings={settings} close={()=>setReceipt(null)}/>}
-    {restoring&&<ConfirmDialog title="Ripristinare questa intenzione?" body="Tornerà attiva nella giornata e nella fascia oraria originali, se c’è ancora disponibilità." confirmLabel="Ripristina intenzione" close={()=>setRestoring(null)} confirmed={async()=>{await restoreIntention(restoring.id);setRestoring(null);await refresh();setLogs(await loadAuditLogs())}}/>}
-    {cancelling&&<ReasonDialog title="Annullare questa ricevuta?" body={`La ricevuta n. ${cancelling.receipt_number} resterà nello storico come annullata.`} label="Motivo dell’annullamento" confirmLabel="Annulla ricevuta" close={()=>setCancelling(null)} confirmed={async reason=>{await cancelReceipt(cancelling.id,reason);setCancelling(null);await refresh();setLogs(await loadAuditLogs())}}/>}
+    {restoring&&<ConfirmDialog title="Ripristinare questa intenzione?" body="Tornerà attiva nella giornata e nella fascia oraria originali, se c’è ancora disponibilità." confirmLabel="Ripristina intenzione" close={()=>setRestoring(null)} confirmed={async()=>{await repository.restore(restoring.id);setRestoring(null);await refresh();setLogs(await repository.logs())}}/>}
+    {cancelling&&<ReasonDialog title="Annullare questa ricevuta?" body={`La ricevuta n. ${cancelling.receipt_number} resterà nello storico come annullata.`} label="Motivo dell’annullamento" confirmLabel="Annulla ricevuta" close={()=>setCancelling(null)} confirmed={async reason=>{await repository.cancel(cancelling.id,reason);setCancelling(null);await refresh();setLogs(await repository.logs())}}/>}
+    {deleting&&<ReasonDialog title="Eliminare questa intenzione?" body="L’intenzione resterà nello storico e potrà essere ripristinata. Non esiste una ricevuta associata da annullare." label="Motivo dell’eliminazione" confirmLabel="Elimina intenzione" close={()=>setDeleting(null)} confirmed={async reason=>{await repository.remove(deleting.id,reason);setDeleting(null);await refresh();setLogs(await repository.logs())}}/>}
   </section>;
 }
 
@@ -231,14 +235,17 @@ function AccountDeleteDialog({close}:{close:()=>void}){
     <div className="actions"><button onClick={close}>Annulla</button><button disabled={busy} className="danger-button" onClick={async()=>{setBusy(true);try{await invoke("delete_account",{currentPassword:password});location.reload()}catch(e){setError(String(e));setBusy(false)}}}>Elimina account locale</button></div></div></div>;
 }
 
-function ScheduleSettings(){
+export function ScheduleSettings(){
   const names=["Domenica","Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato"];
-  const [rules,setRules]=useState<MassScheduleRule[]>([]),[message,setMessage]=useState("");
+  const [rules,setRules]=useState<MassScheduleRule[]>([]),[drafts,setDrafts]=useState<Record<number,string>>({}),[message,setMessage]=useState(""),[error,setError]=useState("");
   useEffect(()=>{loadSchedules().then(setRules)},[]);
-  function timesFor(day:number){return rules.filter(r=>r.weekday===day).map(r=>r.time).join(", ")}
-  function change(day:number,text:string){const other=rules.filter(r=>r.weekday!==day);const parsed=text.split(",").map(t=>t.trim()).filter(t=>/^\d{2}:\d{2}$/.test(t)).map(time=>({weekday:day,time,max_intentions:null}));setRules([...other,...parsed])}
-  return <div className="schedule-settings"><h2>Orari standard delle messe</h2><p>Inserisci gli orari separati da virgola, nel formato 08:30, 18:00.</p>
-    <div className="form-grid">{names.map((name,day)=><label key={`${name}-${timesFor(day)}`}>{name}<input defaultValue={timesFor(day)} onBlur={e=>change(day,e.target.value)} placeholder="Nessuna messa"/></label>)}</div>
-    {message&&<p className="success">{message}</p>}<button className="primary" type="button" onClick={async()=>{await saveSchedules(rules);setMessage("Orari delle messe salvati.")}}><Save/> Salva orari messe</button>
+  function add(day:number){const time=drafts[day];setError("");if(!time)return setError(`Seleziona un orario per ${names[day]}.`);if(rules.some(r=>r.weekday===day&&r.time===time))return setError(`${names[day]} ha già una messa alle ${time}.`);setRules(current=>[...current,{weekday:day,time,max_intentions:null}]);setDrafts(current=>({...current,[day]:""}));setMessage("")}
+  function remove(day:number,time:string){setRules(current=>current.filter(rule=>!(rule.weekday===day&&rule.time===time)));setMessage("")}
+  return <div className="schedule-settings"><h2>Orari standard delle messe</h2><p>Aggiungi o rimuovi gli orari per ogni giorno. Le modifiche diventano effettive dopo il salvataggio.</p>
+    <div className="schedule-editor">{names.map((name,day)=>{const dayRules=rules.filter(r=>r.weekday===day).sort((a,b)=>a.time.localeCompare(b.time));return <section key={name} className="schedule-day"><div><strong>{name}</strong><span>{dayRules.length===0?"Nessuna messa":`${dayRules.length} ${dayRules.length===1?"orario":"orari"}`}</span></div>
+      <div className="schedule-times">{dayRules.map(rule=><span key={rule.time}>{rule.time}<button aria-label={`Rimuovi ${rule.time} di ${name}`} onClick={()=>remove(day,rule.time)}><X/></button></span>)}</div>
+      <div className="schedule-add"><label><span>Nuovo orario</span><input type="time" value={drafts[day]??""} onChange={e=>setDrafts(current=>({...current,[day]:e.target.value}))}/></label><button className="secondary-button" onClick={()=>add(day)}><Plus/> Aggiungi</button></div>
+    </section>})}</div>
+    {error&&<p className="error" role="alert">{error}</p>}{message&&<p className="success">{message}</p>}<button className="primary" type="button" onClick={async()=>{await saveSchedules(rules);setMessage("Orari delle messe salvati.")}}><Save/> Salva orari messe</button>
   </div>;
 }
