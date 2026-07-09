@@ -1,10 +1,54 @@
 # Gestionale Intenzioni Messe
 
-Applicazione desktop Windows locale con Tauri, React, TypeScript e SQLite.
+Applicazione desktop Windows locale per gestire calendario delle messe, intenzioni, ricevute, archivio e backup.
 
-## Avvio e installer
+## Installazione per l'utente
 
-Servono Node.js, Rust stable e i prerequisiti Tauri per Windows (Microsoft C++ Build Tools e WebView2).
+1. Copia su chiavetta uno dei file generati nella cartella `src-tauri/target/release/bundle/`:
+   - `nsis/Gestionale Intenzioni Messe_0.1.0_x64-setup.exe`, consigliato per l'installazione guidata;
+   - `msi/Gestionale Intenzioni Messe_0.1.0_x64_en-US.msi`, utile in ambienti Windows gestiti.
+2. Sul PC della parrocchia apri il file `.exe` o `.msi` e completa l'installazione.
+3. Al primo avvio crea la password amministratore.
+4. Entra in **Impostazioni** e compila i dati della parrocchia, gli orari standard delle messe e il formato ricevuta `58mm` o `80mm`.
+
+I dati, la password e lo storico restano sul computer locale. Per sicurezza usa **Impostazioni -> Backup e ripristino -> Crea backup ora**, soprattutto prima di spostare il programma su un altro PC.
+
+## Come condividerlo al prete
+
+1. Dal tuo PC esegui la build:
+
+```powershell
+npm run tauri build
+```
+
+2. Apri la cartella:
+
+```powershell
+src-tauri\target\release\bundle\nsis
+```
+
+3. Copia su chiavetta il file `Gestionale Intenzioni Messe_0.1.0_x64-setup.exe`.
+4. Sul PC del prete fai doppio clic sul file copiato.
+5. Se Windows mostra un avviso di protezione, scegli **Ulteriori informazioni** e poi **Esegui comunque**, se il file arriva da te.
+6. Dopo l'installazione apri il gestionale, crea la password e configura parrocchia, orari e ricevute.
+
+## Uso quotidiano
+
+1. Apri **Calendario** e seleziona il giorno desiderato, oppure usa **Aggiungi intenzione**.
+2. Inserisci data, ora, testo, persona ricordata e offerta, quindi premi **Salva intenzione**.
+3. Nel giorno scelto appariranno ora e testo dell'intenzione. La ricevuta viene numerata automaticamente.
+4. Apri **Archivio** per cercare, esportare, ristampare, annullare una ricevuta o ripristinare intenzioni eliminate.
+5. In **Impostazioni -> Configuratore ricevuta** scegli quali informazioni stampare sul bollettino.
+
+## Stampa ricevute
+
+Per la stampante termica usa **Archivio -> Anteprima e stampa**. Il gestionale imposta automaticamente il formato carta della ricevuta in base alla configurazione `58mm` o `80mm`; nel pannello di stampa di Windows seleziona comunque la stampante termica corretta.
+
+Se la stampante offre opzioni come "Adatta alla pagina" o "A4", disattivale e usa il formato termico configurato. Le email lunghe vengono spezzate automaticamente per non uscire dai riquadri della ricevuta.
+
+## Sviluppo
+
+Servono Node.js, Rust stable e i prerequisiti Tauri per Windows: Microsoft C++ Build Tools e WebView2.
 
 ```powershell
 npm install
@@ -12,15 +56,4 @@ npm run tauri dev
 npm run tauri build
 ```
 
-La build crea sia `.msi` sia `-setup.exe` in `src-tauri/target/release/bundle/`: possono essere copiati su chiavetta. Al primo avvio si crea la password amministratore; dati e credenziali restano locali.
-
-## Guida rapida
-
-1. Apri **Calendario** e seleziona il giorno desiderato, oppure usa **Aggiungi intenzione**.
-2. Inserisci data, ora, testo e offerta, quindi premi **Salva intenzione**.
-3. Nel giorno scelto appariranno ora e testo dell’intenzione. La ricevuta viene numerata automaticamente.
-4. Apri **Archivio** per cercare, esportare in CSV, ristampare o annullare una ricevuta.
-5. In **Impostazioni** configura parrocchia, orari, limite per messa, carta e password.
-6. Usa **Crea backup ora** prima di operazioni importanti. L’app crea inoltre al massimo un backup automatico al giorno.
-
-Per la stampante termica usa **Anteprima / stampa** nell’Archivio e seleziona la stampante Windows. Il layout segue il formato 58 mm o 80 mm configurato.
+La build crea sia `.msi` sia `-setup.exe` in `src-tauri/target/release/bundle/`.

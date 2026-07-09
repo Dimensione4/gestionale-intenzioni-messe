@@ -20,10 +20,11 @@ textarea { font: inherit; padding: 10px 14px; border: 2px solid #b8bec5; border-
 .receipt-actions .cancel-action, .receipt-actions .delete-action { color: #8b1e25; border-color: #d7a4a7; background: #fff2f2; }
 .receipt-actions .restore-action { color: #185b3b; border-color: #96c4aa; background: #edf8f1; }
 .cancelled { color: #9f1d25; font-weight: 700; }
-.receipt { width: 58mm; margin: 0 auto 25px; padding: 5mm; color: #000; background: #fff; text-align: left; font-family: Arial, sans-serif; font-size: 12px; }
+.receipt { box-sizing: border-box; width: 58mm; margin: 0 auto 25px; padding: 5mm; overflow-wrap: anywhere; color: #000; background: #fff; text-align: left; font-family: Arial, sans-serif; font-size: 12px; }
 .receipt.\38 0mm { width: 80mm; }
-.receipt h2 { margin: 0 0 4px; color: #000; font-family: Arial, sans-serif; font-size: 17px; }
+.receipt h2 { margin: 0 0 4px; overflow-wrap: anywhere; color: #000; font-family: Arial, sans-serif; font-size: 17px; }
 .receipt p { margin: 2px 0; }
+.receipt-contact { line-height: 1.25; word-break: break-word; overflow-wrap: anywhere; }
 .receipt-parish { padding: 3mm; border: 1px solid #000; border-radius: 2mm; }
 .receipt-number { display: grid; grid-template-columns: 1fr auto; gap: 1mm 3mm; margin-top: 3mm; padding: 3mm; border: 1px solid #000; border-radius: 2mm; }
 .receipt-number span { font-size: 10px; font-weight: 700; text-transform: uppercase; }
@@ -31,9 +32,9 @@ textarea { font: inherit; padding: 10px 14px; border: 2px solid #b8bec5; border-
 .receipt-number small { font-size: 11px; }
 .receipt-block { display: grid; gap: 1mm; margin-top: 3mm; }
 .receipt-block span, .receipt-row span { font-size: 10px; text-transform: uppercase; }
-.receipt-block strong { font-size: 14px; }
+.receipt-block strong { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
 .receipt-row { display: flex; justify-content: space-between; gap: 3mm; margin-top: 3mm; padding-top: 2mm; border-top: 1px solid #000; }
-.receipt-row strong { text-align: right; }
+.receipt-row strong { min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .receipt-message { margin-top: 5mm !important; text-align: center; font-weight: 700; }
 .receipt-dialog-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .section-rule { margin: 32px 0; border: 0; border-top: 1px solid #d8d4cb; }

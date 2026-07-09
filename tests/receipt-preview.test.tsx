@@ -30,4 +30,20 @@ describe("anteprima ricevuta",()=>{
     fireEvent.click(screen.getByRole("button",{name:/configura ricevuta/i}));
     expect(configureReceipt).toHaveBeenCalledOnce();
   });
+
+  it("stampa telefono ed email su righe spezzabili per non uscire dalla ricevuta",async()=>{
+    const item:MassIntention={id:1,mass_date:"2026-07-09",mass_time:"18:00",offerer_first_name:"Maria Vittoria",offerer_last_name:"Bolognini",offerer_phone:"",intention_text:"Ricordiamo La nostra amata Teresa...",remembered_person:"Teresa",offering_cents:1500,payment_method:"Contanti",internal_notes:"",status:"active",receipt_number:1,receipt_status:"valid"};
+    const settings:ParishSettings={parish_name:"La tua Parrocchia",address:"via Roma 2",phone:"3333333333",email:"darionmarco.bellini@dimensione.it",default_offering_cents:1500,max_intentions_per_mass:3,receipt_paper_size:"58mm",priest_first_name:"Don Dario",priest_last_name:"Bellini",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_show_address:1,receipt_show_contacts:1,receipt_show_priest:1,receipt_show_offerer:1,receipt_show_intention:1,receipt_show_mass:1,receipt_show_offering:1,receipt_custom_message:"Grazie"};
+    const repository={list:async()=>[item],logs:async()=>[],cancel:vi.fn(),remove:vi.fn(),restore:vi.fn()};
+    render(<Archive settings={settings} repository={repository}/>);
+
+    fireEvent.click(await screen.findByRole("button",{name:/anteprima e stampa/i}));
+
+    const phone=screen.getByText("3333333333");
+    const email=screen.getByText("darionmarco.bellini@dimensione.it");
+    expect(phone).toHaveClass("receipt-contact");
+    expect(email).toHaveClass("receipt-contact");
+    expect(phone.parentElement).toBe(email.parentElement);
+    expect(phone.nextSibling).toBe(email);
+  });
 });

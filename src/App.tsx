@@ -209,7 +209,8 @@ function ReceiptPreview({item,settings,close,configure}:{item:MassIntention;sett
     <div className="dialog-head no-print"><div><p className="eyebrow">Documento termico</p><h2 id="receipt-title">Anteprima ricevuta</h2></div><button className="close-button" onClick={close}><X/> Chiudi anteprima</button></div>
     <div ref={receiptRef} className={`receipt ${settings?.receipt_paper_size??"58mm"}`}><section className="receipt-parish"><h2>{settings?.parish_name??"Parrocchia"}</h2>
       {settings?.receipt_show_address!==0&&settings?.address&&<p>{settings.address}</p>}
-      {settings?.receipt_show_contacts!==0&&(settings?.phone||settings?.email)&&<p>{[settings.phone,settings.email].filter(Boolean).join(" · ")}</p>}
+      {settings?.receipt_show_contacts!==0&&settings?.phone&&<p className="receipt-contact">{settings.phone}</p>}
+      {settings?.receipt_show_contacts!==0&&settings?.email&&<p className="receipt-contact">{settings.email}</p>}
       {settings?.receipt_show_priest!==0&&(settings?.priest_first_name||settings?.priest_last_name)&&<p>Parroco: Don {`${settings.priest_first_name} ${settings.priest_last_name}`.trim()}</p>}</section>
       <section className="receipt-number"><span>Ricevuta</span><strong>N. {item.receipt_number}</strong><small>del {new Date(`${item.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</small></section>
       {settings?.receipt_show_offerer!==0&&<section className="receipt-block"><span>Ricevuta da</span><strong>{`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||"Non indicato"}</strong></section>}
