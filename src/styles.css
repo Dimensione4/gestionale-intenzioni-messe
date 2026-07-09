@@ -117,15 +117,36 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .backup-card small { color: var(--muted); }
 .backup-encryption { display: grid; gap: 10px; margin-top: 26px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
 .tutorial-dialog { max-width: 680px; }
+.tutorial-demo-dialog { width: min(1040px, 96vw); }
 .tutorial-step-count { display: inline-flex; margin-bottom: 12px; padding: 4px 10px; color: #5f4b0b; background: #fff6d8; border-radius: 999px; font-weight: 800; font-size: 14px; }
 .tutorial-dots { display: flex; gap: 8px; margin: 22px 0; }
-.tutorial-dots span { width: 10px; height: 10px; border-radius: 50%; background: #cbd2d9; }
-.tutorial-dots span.active { background: var(--primary); }
+.tutorial-dots span, .tutorial-dots button { width: 10px; height: 10px; min-height: 10px; padding: 0; border: 0; border-radius: 50%; background: #cbd2d9; }
+.tutorial-dots span.active, .tutorial-dots button.active { background: var(--primary); }
 .tutorial-library { display: grid; gap: 14px; }
 .tutorial-library article { display: grid; grid-template-columns: 56px 1fr; gap: 16px; padding: 20px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
 .tutorial-library article > span { width: 44px; height: 44px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 12px; font-weight: 800; }
 .tutorial-library h2, .tutorial-library p { margin: 0; }
+.tutorial-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .tutorial-note { margin-top: 20px; }
+.tutorial-demo-caption { margin: 16px 0 0; padding: 14px 16px; color: #17324e; background: #eef6fb; border: 1px solid #b8ccd8; border-radius: 10px; font-weight: 700; }
+.demo-screen { min-height: 360px; display: grid; gap: 14px; align-content: start; padding: 22px; background: linear-gradient(180deg,#f8fbfd,#eef2f5); border: 1px solid var(--border); border-radius: 16px; }
+.demo-toolbar { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 10px; text-align: center; }
+.demo-toolbar span { padding: 8px; border: 1px solid #b4bdc6; border-radius: 8px; }
+.demo-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.demo-calendar-grid > div { min-height: 92px; display: grid; align-content: start; gap: 5px; padding: 10px; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
+.demo-calendar-grid > div.active { outline: 3px solid var(--accent); outline-offset: -3px; }
+.demo-calendar-grid small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.demo-card-head, .demo-row, .demo-record { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #fff; border: 1px solid var(--border); border-radius: 10px; }
+.demo-row.filled, .demo-record.deleted { background: #fff9e8; border-color: #dfcf99; }
+.demo-record { display: grid; grid-template-columns: 170px 1fr auto; }
+.demo-row button, .demo-record button, .demo-card-head button { min-height: 38px; padding: 6px 10px; border: 1px solid #aeb7c0; border-radius: 7px; background: #fff; }
+.receipt-demo { place-items: start center; }
+.demo-receipt { width: min(280px, 100%); display: grid; gap: 10px; padding: 16px; color: #000; background: #fff; border: 1px dashed #777; font: 13px Arial, sans-serif; }
+.demo-receipt section { display: grid; padding: 10px; border: 1px solid #000; border-radius: 8px; }
+.demo-total { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 8px; font-weight: 700; }
+.demo-filter, .demo-backup-path { padding: 14px 16px; color: #47525d; background: #fff; border: 2px solid #aeb7c0; border-radius: 8px; }
+.demo-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.demo-settings-grid span { padding: 16px; color: #fff; background: var(--primary); border-radius: 10px; font-weight: 800; }
 .receipt-options { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px 18px; margin: 24px 0; padding: 20px; border: 1px solid var(--border); border-radius: 10px; }
 .receipt-options legend { padding: 0 8px; font-weight: 700; }
 .receipt-options label { min-height: 48px; display: flex; align-items: center; gap: 10px; font-weight: 500; }

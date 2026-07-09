@@ -11,10 +11,12 @@ import { cancelReceipt, createBackup, createIntention, deleteIntention, loadArch
 import type { AuditLog, MassIntention, MassScheduleRule, NewIntention, ParishSettings } from "./lib/db";
 import { getCelebrationOfDay } from "./lib/saints";
 
+type SettingsSection="parish"|"schedules"|"receipt"|"appearance"|"user"|"backup";
+
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
   const [page,setPage]=useState<"calendar"|"archive"|"settings"|"tutorial">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
-  const [settingsStart,setSettingsStart]=useState<"parish"|"receipt">("parish");
+  const [settingsStart,setSettingsStart]=useState<SettingsSection>("parish");
   const [availableUpdate,setAvailableUpdate]=useState<Update|null>(null),[tutorialOpen,setTutorialOpen]=useState(false);
   useEffect(()=>{invoke<boolean>("has_password").then(v=>setSetup(!v)).finally(()=>setLoading(false))},[]);
   useEffect(()=>{if(authenticated)loadSettings().then(setSettings)},[authenticated]);
@@ -24,13 +26,14 @@ export function App() {
   useEffect(()=>{if(authenticated&&localStorage.getItem("tutorial-completed")!=="1")setTutorialOpen(true)},[authenticated]);
   if(loading)return <main className="center">Avvio del gestionale…</main>;
   if(!authenticated)return <Login setup={setup} done={()=>{setSetup(false);setAuthenticated(true)}}/>;
+  const openTutorialSection=(target:TutorialTarget)=>{if(target.page==="settings")setSettingsStart(target.settingsStart??"parish");setPage(target.page)};
   return <div className="shell"><aside><div className="brand">{settings?.logo_data_url?<img src={settings.logo_data_url} alt="Logo parrocchia"/>:<Church size={34}/>}<span>{settings?.parish_name??"Gestionale Messe"}</span></div>
     <nav><button className={page==="calendar"?"active":""} onClick={()=>setPage("calendar")}><CalendarDays/> Calendario</button>
     <button className={page==="archive"?"active":""} onClick={()=>setPage("archive")}><ArchiveIcon/> Archivio</button>
     <button className={page==="tutorial"?"active":""} onClick={()=>setPage("tutorial")}><BookOpen/> Tutorial</button>
     <button className={page==="settings"?"active":""} onClick={()=>{setSettingsStart("parish");setPage("settings")}}><Cog/> Impostazioni</button></nav>
     <button className="logout" onClick={()=>setAuthenticated(false)}><LogOut/> Esci</button></aside>
-    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:page==="tutorial"?<TutorialPage/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
+    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:page==="tutorial"?<TutorialPage openSection={openTutorialSection}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
     {tutorialOpen&&<TutorialOverlay close={()=>{localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}} openTutorial={()=>{setPage("tutorial");localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}}/>}
     {availableUpdate&&<UpdateDialog update={availableUpdate} close={()=>setAvailableUpdate(null)}/>}</div>;
 }
@@ -66,12 +69,35 @@ function UpdateDialog({update,close}:{update:Update;close:()=>void}){
     <div className="actions"><button disabled={installing} onClick={close}>Più tardi</button><button className="primary" disabled={installing} onClick={install}><Download/> {installing?"Installazione...":"Installa aggiornamento"}</button></div></div></div>;
 }
 
-const tutorialSteps=[
-  {title:"Calendario",body:"Scegli un giorno, controlla gli orari delle messe e aggiungi o modifica le intenzioni."},
-  {title:"Ricevute",body:"Ogni intenzione genera una ricevuta numerata. Dall'archivio puoi ristamparla o annullarla mantenendo lo storico."},
-  {title:"Archivio e storico",body:"Cerca per persona ricordata, offerente, data o numero ricevuta. Le eliminazioni finiscono nel cestino e possono essere ripristinate."},
-  {title:"Backup",body:"Il gestionale crea backup locali automatici. Se abiliti l'online, prepara sempre file cifrati prima dell'upload."},
-  {title:"Impostazioni",body:"Configura parrocchia, sacerdote, orari standard, colori, logo e formato della ricevuta termica."},
+type TutorialTarget={page:"calendar"|"archive"|"settings"|"tutorial";settingsStart?:SettingsSection};
+type TutorialDemoKind="calendar"|"day"|"archive"|"receipt"|"backup"|"settings";
+type TutorialStep={title:string;body:string;sectionLabel:string;target:TutorialTarget;demo:{title:string;caption:string;kind:TutorialDemoKind}[]};
+const tutorialSteps:TutorialStep[]=[
+  {title:"Calendario",body:"Vedi il mese, riconosci subito le intenzioni compilate e apri il dettaglio della giornata.",sectionLabel:"Apri calendario",target:{page:"calendar"},demo:[
+    {title:"Vista mese",caption:"Le giornate mostrano orari disponibili e nomi delle persone ricordate.",kind:"calendar"},
+    {title:"Dettaglio giornata",caption:"Cliccando sul giorno vedi le fasce orarie e il pulsante per aggiungere intenzioni.",kind:"day"},
+    {title:"Modifica rapida",caption:"Ogni riga già compilata può essere modificata o eliminata con storico.",kind:"day"},
+  ]},
+  {title:"Ricevute",body:"Controlla l'anteprima, scegli cosa stampare e usa formati termici o etichette Brother.",sectionLabel:"Apri archivio",target:{page:"archive"},demo:[
+    {title:"Anteprima ricevuta",caption:"La ricevuta mostra parrocchia, numero, offerente, intenzione, messa e offerta.",kind:"receipt"},
+    {title:"Formato stampante",caption:"Puoi usare 58mm, 80mm o dimensioni personalizzate per etichette.",kind:"receipt"},
+    {title:"Stampa/PDF",caption:"Il titolo PDF è dinamico e non usa il nome generico del gestionale.",kind:"receipt"},
+  ]},
+  {title:"Archivio e storico",body:"Cerca, filtra, ristampa, annulla ricevute e ripristina intenzioni eliminate.",sectionLabel:"Apri archivio",target:{page:"archive"},demo:[
+    {title:"Filtri e ordinamento",caption:"Ordina per ricevuta, data o persona ricordata.",kind:"archive"},
+    {title:"Cestino",caption:"Le intenzioni eliminate non spariscono: restano ripristinabili.",kind:"archive"},
+    {title:"Storico modifiche",caption:"Creazioni, modifiche e annullamenti restano tracciati.",kind:"archive"},
+  ]},
+  {title:"Backup",body:"Crea backup locali automatici, backup cifrati e predisponi Google Drive.",sectionLabel:"Apri backup",target:{page:"settings",settingsStart:"backup"},demo:[
+    {title:"Backup ogni 6 ore",caption:"I file vengono ordinati per giorno e orario nella cartella Documenti.",kind:"backup"},
+    {title:"Backup cifrato",caption:"Il file .gimbackup è pensato per essere copiato online in sicurezza.",kind:"backup"},
+    {title:"Google Drive",caption:"Il collegamento resta disattivato finché non viene autorizzato via OAuth.",kind:"backup"},
+  ]},
+  {title:"Impostazioni",body:"Configura parrocchia, sacerdote, orari, colori, logo, ricevute e sicurezza.",sectionLabel:"Apri impostazioni",target:{page:"settings",settingsStart:"parish"},demo:[
+    {title:"Dati parrocchia",caption:"Nome, indirizzo, contatti e sacerdote finiscono nella ricevuta.",kind:"settings"},
+    {title:"Orari messe",caption:"Aggiungi e rimuovi orari standard con selettori chiari.",kind:"settings"},
+    {title:"Configuratore ricevuta",caption:"Scegli quali dati stampare e il formato della carta.",kind:"receipt"},
+  ]},
 ];
 
 function TutorialOverlay({close,openTutorial}:{close:()=>void;openTutorial:()=>void}){
@@ -81,11 +107,33 @@ function TutorialOverlay({close,openTutorial}:{close:()=>void;openTutorial:()=>v
     <div className="actions"><button onClick={close}>Salta tutorial</button><button className="secondary-button" onClick={openTutorial}><BookOpen/> Apri libreria tutorial</button>{step<tutorialSteps.length-1?<button className="primary" onClick={()=>setStep(step+1)}>Avanti</button>:<button className="primary" onClick={close}>Inizia a usare il gestionale</button>}</div></div></div>;
 }
 
-function TutorialPage(){
+export function TutorialPage({openSection}:{openSection:(target:TutorialTarget)=>void}){
+  const [demo,setDemo]=useState<TutorialStep|null>(null);
   return <section><header><div><p className="eyebrow">Guida rapida</p><h1>Tutorial</h1><p className="page-subtitle">Una piccola libreria sempre disponibile per ripassare le funzioni principali.</p></div></header>
-    <div className="tutorial-library">{tutorialSteps.map((step,index)=><article key={step.title}><span>{index+1}</span><div><h2>{step.title}</h2><p>{step.body}</p></div></article>)}</div>
+    <div className="tutorial-library">{tutorialSteps.map((step,index)=><article key={step.title}><span>{index+1}</span><div><h2>{step.title}</h2><p>{step.body}</p><div className="tutorial-actions"><button className="primary" onClick={()=>setDemo(step)}><BookOpen/> Vedi demo</button><button className="secondary-button" onClick={()=>openSection(step.target)}>{step.sectionLabel}</button></div></div></article>)}</div>
     <div className="card tutorial-note"><h2>Consiglio operativo</h2><p>Prima di usare il gestionale in parrocchia configura orari standard, dati della parrocchia e fai un backup manuale di prova.</p></div>
+    {demo&&<TutorialDemoModal step={demo} close={()=>setDemo(null)} openSection={()=>{openSection(demo.target);setDemo(null)}}/>}
   </section>;
+}
+
+function TutorialDemoModal({step,close,openSection}:{step:TutorialStep;close:()=>void;openSection:()=>void}){
+  const [frame,setFrame]=useState(0),[playing,setPlaying]=useState(true);
+  useEffect(()=>{if(!playing)return;const timer=window.setInterval(()=>setFrame(current=>(current+1)%step.demo.length),2300);return()=>window.clearInterval(timer)},[playing,step]);
+  const current=step.demo[frame];
+  return <div className="modal-backdrop"><div className="dialog tutorial-demo-dialog" role="dialog" aria-modal="true" aria-labelledby="tutorial-demo-title"><div className="dialog-head"><div><p className="eyebrow">Demo guidata</p><h2 id="tutorial-demo-title">{step.title}: {current.title}</h2></div><button onClick={close}><X/> Chiudi</button></div>
+    <DemoFrame kind={current.kind}/>
+    <p className="tutorial-demo-caption">{current.caption}</p>
+    <div className="tutorial-dots" aria-label="Passaggi demo">{step.demo.map((item,index)=><button key={item.title} aria-label={`Mostra ${item.title}`} className={index===frame?"active":""} onClick={()=>{setFrame(index);setPlaying(false)}}/>)}</div>
+    <div className="actions"><button onClick={()=>setPlaying(!playing)}>{playing?"Pausa demo":"Riprendi demo"}</button><button className="secondary-button" onClick={()=>setFrame((frame+step.demo.length-1)%step.demo.length)}>Indietro</button><button className="secondary-button" onClick={()=>setFrame((frame+1)%step.demo.length)}>Avanti</button><button className="primary" onClick={openSection}>{step.sectionLabel}</button></div></div></div>;
+}
+
+function DemoFrame({kind}:{kind:TutorialDemoKind}){
+  if(kind==="calendar")return <div className="demo-screen calendar-demo"><div className="demo-toolbar"><span>Mese precedente</span><strong>Luglio 2026</strong><span>Mese successivo</span></div><div className="demo-calendar-grid">{Array.from({length:14},(_,i)=><div key={i} className={i===8?"active":""}><b>{i+1}</b>{i===8?<><small><strong>18:00</strong> Maria Rossi</small><small><strong>18:00</strong> Luigi Bianchi</small></>:<small>18:00 0 intenzioni</small>}</div>)}</div></div>;
+  if(kind==="day")return <div className="demo-screen"><div className="demo-card-head"><strong>Giovedì 9 luglio</strong><button>+ Aggiungi intenzione</button></div><div className="demo-row"><b>08:30</b><span>Nessuna intenzione</span><button>+ Aggiungi</button></div><div className="demo-row filled"><b>18:00</b><span>Maria Rossi · € 15.00</span><button>Modifica</button></div></div>;
+  if(kind==="archive")return <div className="demo-screen"><div className="demo-filter">Cerca per nome, testo o ricevuta</div><div className="demo-record"><strong>Ricevuta n. 4</strong><span>In memoria di Walter</span><button>Anteprima e stampa</button></div><div className="demo-record deleted"><strong>Eliminata</strong><span>Rosalia Bolognini</span><button>Ripristina</button></div></div>;
+  if(kind==="receipt")return <div className="demo-screen receipt-demo"><div className="demo-receipt"><section><strong>La tua Parrocchia</strong><span>via Roma 2</span><span>dariomarcobellini@dimensione4.it</span></section><section><b>Ricevuta</b><strong>N. 1</strong></section><p>Ricevuta da <b>Maria Bolognini</b></p><p>Intenzione <b>Teresa</b></p><p className="demo-total">Offerta € 15.00</p></div></div>;
+  if(kind==="backup")return <div className="demo-screen"><div className="demo-backup-path">Backup / 2026-07-09 / 18-00 / gestionale.sqlite</div><div className="demo-row filled"><b>.gimbackup</b><span>File cifrato pronto per cloud o chiavetta</span></div><div className="demo-row"><b>Google Drive</b><span>Autorizzazione OAuth dal browser</span><button>Collega</button></div></div>;
+  return <div className="demo-screen"><div className="demo-settings-grid"><span>Parrocchia</span><span>Orari messe</span><span>Ricevuta</span><span>Aspetto</span></div><div className="demo-row filled"><b>Formato ricevuta</b><span>58mm · 80mm · etichetta 62×100</span></div></div>;
 }
 
 export function AppFooter({versionLoader=getVersion}:{versionLoader?:()=>Promise<string>}){
@@ -323,8 +371,9 @@ function ReceiptPreview({item,settings,close,configure}:{item:MassIntention;sett
   </div></div>;
 }
 
-function Settings({value,changed,initialSection="parish"}:{value:ParishSettings|null;changed:(v:ParishSettings)=>void;initialSection?:"parish"|"receipt"}){
-  const [form,setForm]=useState(value),[section,setSection]=useState<"parish"|"schedules"|"receipt"|"appearance"|"user"|"backup">(initialSection),[message,setMessage]=useState("");
+function Settings({value,changed,initialSection="parish"}:{value:ParishSettings|null;changed:(v:ParishSettings)=>void;initialSection?:SettingsSection}){
+  const [form,setForm]=useState(value),[section,setSection]=useState<SettingsSection>(initialSection),[message,setMessage]=useState("");
+  useEffect(()=>setSection(initialSection),[initialSection]);
   useEffect(()=>{if(!form)loadSettings().then(v=>{setForm(v);changed(v)})},[form,changed]);
   if(!form)return <p>Caricamento impostazioni…</p>;
   const field=(key:keyof ParishSettings,val:string|number)=>setForm({...form,[key]:val});
