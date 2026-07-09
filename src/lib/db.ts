@@ -5,13 +5,14 @@ export type ParishSettings = {
   parish_name: string; address: string; phone: string; email: string;
   default_offering_cents: number; max_intentions_per_mass: number;
   receipt_paper_size: "58mm" | "80mm";
+  priest_first_name:string; priest_last_name:string; primary_color:string; accent_color:string; logo_data_url:string;
 };
-const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm" };
+const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"" };
 let connection: Promise<Database> | undefined;
 const db = () => connection ??= Database.load("sqlite:gestionale.sqlite");
 
 export async function loadSettings(): Promise<ParishSettings> {
-  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size FROM parish_settings WHERE id=1");
+  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url FROM parish_settings WHERE id=1");
   return rows[0] ?? defaults;
 }
 export async function saveSettings(v: ParishSettings) {
@@ -20,6 +21,7 @@ export async function saveSettings(v: ParishSettings) {
      VALUES(1,$1,$2,$3,$4,$5,$6,$7,datetime('now'),datetime('now'))
      ON CONFLICT(id) DO UPDATE SET parish_name=$1,address=$2,phone=$3,email=$4,default_offering_cents=$5,max_intentions_per_mass=$6,receipt_paper_size=$7,updated_at=datetime('now')`,
     [v.parish_name,v.address,v.phone,v.email,v.default_offering_cents,v.max_intentions_per_mass,v.receipt_paper_size]);
+  await (await db()).execute("UPDATE parish_settings SET priest_first_name=$1,priest_last_name=$2,primary_color=$3,accent_color=$4,logo_data_url=$5 WHERE id=1",[v.priest_first_name,v.priest_last_name,v.primary_color,v.accent_color,v.logo_data_url]);
 }
 
 export type NewIntention = {
@@ -61,6 +63,22 @@ export async function cancelReceipt(intentionId:number,reason:string) {
   const database=await db();
   await database.execute("UPDATE receipts SET status='cancelled',cancelled_reason=$1,updated_at=datetime('now') WHERE intention_id=$2",[reason,intentionId]);
   await database.execute("INSERT INTO audit_logs(action,entity_type,entity_id,details,created_at) VALUES('cancel','receipt',$1,$2,datetime('now'))",[intentionId,reason]);
+}
+
+export async function updateIntention(id:number,value:NewIntention) {
+  const database=await db();
+  await database.execute(`UPDATE mass_intentions SET mass_date=$1,mass_time=$2,offerer_first_name=$3,offerer_last_name=$4,offerer_phone=$5,intention_text=$6,remembered_person=$7,offering_cents=$8,payment_method=$9,internal_notes=$10,updated_at=datetime('now') WHERE id=$11`,
+    [value.mass_date,value.mass_time,value.offerer_first_name,value.offerer_last_name,value.offerer_phone,value.intention_text,value.remembered_person,value.offering_cents,value.payment_method,value.internal_notes,id]);
+}
+export async function deleteIntention(id:number,reason:string) {
+  await (await db()).execute("UPDATE mass_intentions SET status='deleted',delete_reason=$1,updated_at=datetime('now') WHERE id=$2",[reason,id]);
+}
+export async function restoreIntention(id:number) {
+  await (await db()).execute("UPDATE mass_intentions SET status='active',delete_reason=NULL,updated_at=datetime('now') WHERE id=$1",[id]);
+}
+export type AuditLog={id:number;action:string;entity_type:string;entity_id:number|null;details:string|null;created_at:string};
+export async function loadAuditLogs():Promise<AuditLog[]> {
+  return (await db()).select<AuditLog[]>("SELECT id,action,entity_type,entity_id,details,created_at FROM audit_logs ORDER BY id DESC LIMIT 500");
 }
 
 export async function createBackup():Promise<string> {

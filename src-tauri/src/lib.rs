@@ -25,6 +25,11 @@ fn change_password(current_password:String,new_password:String)->Result<bool,Str
  entry()?.set_password(&hash).map_err(|e|e.to_string())?;Ok(true)
 }
 #[tauri::command]
+fn delete_account(current_password:String)->Result<bool,String>{
+ if !verify_password(current_password){return Err("La password non è corretta.".into())}
+ entry()?.delete_credential().map_err(|e|e.to_string())?;Ok(true)
+}
+#[tauri::command]
 fn new_backup_path(app:tauri::AppHandle)->Result<String,String>{
  let folder=app.path().document_dir().map_err(|e|e.to_string())?.join("Gestionale Intenzioni Messe").join("Backup");
  std::fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
@@ -57,7 +62,9 @@ pub fn run(){
  apply_pending_restore();
  tauri::Builder::default().plugin(tauri_plugin_sql::Builder::default().add_migrations("sqlite:gestionale.sqlite",vec![
   tauri_plugin_sql::Migration{version:1,description:"initial schema",sql:include_str!("../migrations/001_initial.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
-  tauri_plugin_sql::Migration{version:2,description:"intention integrity",sql:include_str!("../migrations/002_intention_integrity.sql"),kind:tauri_plugin_sql::MigrationKind::Up}
- ]).build()).invoke_handler(tauri::generate_handler![has_password,set_initial_password,verify_password,change_password,new_backup_path,restore_latest_backup])
+  tauri_plugin_sql::Migration{version:2,description:"intention integrity",sql:include_str!("../migrations/002_intention_integrity.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
+  tauri_plugin_sql::Migration{version:3,description:"history and personalization",sql:include_str!("../migrations/003_history_and_personalization.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
+  tauri_plugin_sql::Migration{version:4,description:"atomic history",sql:include_str!("../migrations/004_atomic_history.sql"),kind:tauri_plugin_sql::MigrationKind::Up}
+ ]).build()).invoke_handler(tauri::generate_handler![has_password,set_initial_password,verify_password,change_password,delete_account,new_backup_path,restore_latest_backup])
  .run(tauri::generate_context!()).expect("errore durante l'avvio dell'applicazione");
 }

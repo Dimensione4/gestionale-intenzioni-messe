@@ -18,6 +18,7 @@ const settings = {
   default_offering_cents: 1500,
   max_intentions_per_mass: 3,
   receipt_paper_size: "58mm" as const,
+  priest_first_name: "", priest_last_name: "", primary_color: "#173D61", accent_color: "#B69943", logo_data_url: "",
 };
 
 afterEach(cleanup);

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-09T12:00:00+02:00",
+  "title": "Design System: Gestionale Intenzioni Messe",
+  "extensions": {
+    "colorMeta": {
+      "primary-navy": {"role":"primary","displayName":"Blu agenda","canonical":"#173D61","tonalRamp":["#071421","#0D253A","#173D61","#315879","#5A7791","#8EA5B8","#C4D0D9","#EEF2F5"]},
+      "accent-gold": {"role":"accent","displayName":"Oro selezione","canonical":"#B69943","tonalRamp":["#241C08","#493A12","#715B24","#B69943","#C8B36F","#D9CA9B","#EAE1C7","#F8F4E8"]}
+    },
+    "typographyMeta": {
+      "headline": {"displayName":"Titolo pagina","purpose":"Identifica la schermata corrente."},
+      "body": {"displayName":"Testo operativo","purpose":"Contenuti e istruzioni leggibili."}
+    },
+    "shadows": [
+      {"name":"dialog","value":"0 18px 48px rgba(0,0,0,.33)","purpose":"Solo dialoghi e conferme."}
+    ],
+    "motion": [
+      {"name":"state","value":"180ms ease-out","purpose":"Hover, focus e cambi di stato."}
+    ],
+    "breakpoints": [
+      {"name":"compact-desktop","value":"1100px"}
+    ]
+  },
+  "components": [
+    {
+      "name":"Pulsante primario",
+      "kind":"button",
+      "refersTo":"button-primary",
+      "description":"Azione principale della sezione.",
+      "html":"<button class=\"ds-btn-primary\">Salva modifiche</button>",
+      "css":".ds-btn-primary{min-height:50px;padding:10px 20px;border:0;border-radius:8px;background:#173D61;color:#fff;font:700 18px Inter,Segoe UI,sans-serif}.ds-btn-primary:hover{filter:brightness(.9)}.ds-btn-primary:focus-visible{outline:4px solid #B6994373;outline-offset:2px}"
+    },
+    {
+      "name":"Campo di testo",
+      "kind":"input",
+      "refersTo":"input",
+      "description":"Controllo sempre accompagnato da etichetta visibile.",
+      "html":"<label class=\"ds-label\">Nome parrocchia<input class=\"ds-input\" value=\"San Michele\"></label>",
+      "css":".ds-label{display:grid;gap:7px;color:#18202B;font:650 18px Inter,Segoe UI,sans-serif}.ds-input{min-height:52px;padding:10px 14px;border:2px solid #AEB7C0;border-radius:8px;font:18px Inter,Segoe UI,sans-serif}.ds-input:focus{outline:4px solid #B6994373;border-color:#173D61}"
+    }
+  ],
+  "narrative": {
+    "northStar":"L’agenda parrocchiale",
+    "overview":"Un prodotto da scrivania sobrio e leggibile, costruito attorno alla giornata e alle sue fasce orarie.",
+    "keyCharacteristics":["Navigazione stabile e sempre visibile.","Dati organizzati per giorno, ora e stato.","Azioni grandi, nominate e coerenti.","Storico permanente con eliminazioni reversibili."],
+    "rules":[
+      {"name":"One Accent","body":"L’oro evidenzia oggi, focus e dettagli selezionati; non è decorazione diffusa.","section":"colors"},
+      {"name":"Read Once","body":"Etichette e messaggi devono essere comprensibili alla prima lettura e non scendere sotto 18px.","section":"typography"}
+    ],
+    "dos":["Mostrare fasce orarie, capienza e intenzioni nella vista giorno.","Usare conferme esplicite per azioni distruttive.","Conservare record eliminati nello storico."],
+    "donts":["Non ricreare gestionali datati e densi.","Non usare icone senza testo o controlli piccoli.","Non cancellare fisicamente intenzioni o storico."]
+  }
+}
