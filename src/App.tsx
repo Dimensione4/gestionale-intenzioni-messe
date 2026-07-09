@@ -276,6 +276,16 @@ export function receiptPageHeightMm(pixelHeight:number){
   return Math.max(80,Math.ceil(pixelHeight*25.4/96)+4);
 }
 
+export function receiptPaperDimensions(settings:ParishSettings|null,pixelHeight:number){
+  const customWidth=settings?.receipt_custom_width_mm&&settings.receipt_custom_width_mm>0?settings.receipt_custom_width_mm:null;
+  const customHeight=settings?.receipt_custom_height_mm&&settings.receipt_custom_height_mm>0?settings.receipt_custom_height_mm:null;
+  return {
+    width: customWidth??(settings?.receipt_paper_size==="80mm"?80:58),
+    height: customHeight??receiptPageHeightMm(pixelHeight),
+    custom: Boolean(customWidth||customHeight),
+  };
+}
+
 export function receiptPrintTitle(item:MassIntention,settings:ParishSettings|null){
   const receiptNumber=item.receipt_number??"senza-numero";
   const offerer=`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||item.remembered_person||"offerente";
@@ -284,20 +294,21 @@ export function receiptPrintTitle(item:MassIntention,settings:ParishSettings|nul
 }
 
 function ReceiptPreview({item,settings,close,configure}:{item:MassIntention;settings:ParishSettings|null;close:()=>void;configure?:()=>void}){
-  const receiptRef=useRef<HTMLDivElement>(null),paperWidth=settings?.receipt_paper_size==="80mm"?80:58;
-  const [pageHeight,setPageHeight]=useState(120);
+  const receiptRef=useRef<HTMLDivElement>(null);
+  const [paper,setPaper]=useState(()=>receiptPaperDimensions(settings,0));
+  useEffect(()=>setPaper(receiptPaperDimensions(settings,receiptRef.current?.scrollHeight??0)),[settings]);
   function printReceipt(){
     const previousTitle=document.title;
     document.title=receiptPrintTitle(item,settings);
     const restoreTitle=()=>{document.title=previousTitle;window.removeEventListener("afterprint",restoreTitle)};
     window.addEventListener("afterprint",restoreTitle);
-    setPageHeight(receiptPageHeightMm(receiptRef.current?.scrollHeight??0));
+    setPaper(receiptPaperDimensions(settings,receiptRef.current?.scrollHeight??0));
     requestAnimationFrame(()=>{window.print();setTimeout(restoreTitle,1000)});
   }
   return <div className="modal-backdrop"><div className="dialog receipt-dialog" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
-    <style data-receipt-page-size>{`@media print { @page { size: ${paperWidth}mm ${pageHeight}mm; margin: 0; } }`}</style>
+    <style data-receipt-page-size>{`@media print { @page { size: ${paper.width}mm ${paper.height}mm; margin: 0; } }`}</style>
     <div className="dialog-head no-print"><div><p className="eyebrow">Documento termico</p><h2 id="receipt-title">Anteprima ricevuta</h2></div><button className="close-button" onClick={close}><X/> Chiudi anteprima</button></div>
-    <div ref={receiptRef} className={`receipt ${settings?.receipt_paper_size??"58mm"}`}><section className="receipt-parish"><h2>{settings?.parish_name??"Parrocchia"}</h2>
+    <div ref={receiptRef} className={`receipt ${settings?.receipt_paper_size??"58mm"} ${paper.custom?"custom-label":""}`} style={{width:`${paper.width}mm`}}><section className="receipt-parish"><h2>{settings?.parish_name??"Parrocchia"}</h2>
       {settings?.receipt_show_address!==0&&settings?.address&&<p>{settings.address}</p>}
       {settings?.receipt_show_contacts!==0&&settings?.phone&&<p className="receipt-contact">{settings.phone}</p>}
       {settings?.receipt_show_contacts!==0&&settings?.email&&<p className="receipt-contact">{settings.email}</p>}
@@ -343,7 +354,10 @@ function ReceiptSettings({form,field,saved,message}:{form:ParishSettings;field:(
   const choices=[["receipt_show_address","Indirizzo della parrocchia"],["receipt_show_contacts","Telefono ed email"],["receipt_show_priest","Nome del sacerdote"],["receipt_show_offerer","Nome dell’offerente"],["receipt_show_intention","Testo dell’intenzione"],["receipt_show_mass","Data e ora della messa"],["receipt_show_offering","Importo dell’offerta"]] as const;
   return <div><h2>Configuratore ricevuta</h2><p>Scegli quali informazioni stampare. Nome della parrocchia, numero e data della ricevuta restano sempre presenti.</p>
     <fieldset className="receipt-options"><legend>Informazioni da mostrare</legend>{choices.map(([key,label])=><label key={key}><input type="checkbox" checked={form[key]!==0} onChange={e=>field(key,e.target.checked?1:0)}/><span>{label}</span></label>)}</fieldset>
-    <div className="form-grid"><label>Formato carta<select value={form.receipt_paper_size} onChange={e=>field("receipt_paper_size",e.target.value)}><option>58mm</option><option>80mm</option></select></label><label>Messaggio finale<input value={form.receipt_custom_message} onChange={e=>field("receipt_custom_message",e.target.value)} placeholder="Per esempio: Grazie"/></label></div>
+    <div className="form-grid"><label>Formato carta<select value={form.receipt_paper_size} onChange={e=>field("receipt_paper_size",e.target.value)}><option>58mm</option><option>80mm</option></select></label><label>Messaggio finale<input value={form.receipt_custom_message} onChange={e=>field("receipt_custom_message",e.target.value)} placeholder="Per esempio: Grazie"/></label>
+      <label>Larghezza personalizzata etichetta (mm)<input type="number" min="0" max="120" value={form.receipt_custom_width_mm??0} onChange={e=>field("receipt_custom_width_mm",+e.target.value)} placeholder="0 = usa 58/80"/></label>
+      <label>Altezza personalizzata etichetta (mm)<input type="number" min="0" max="300" value={form.receipt_custom_height_mm??0} onChange={e=>field("receipt_custom_height_mm",+e.target.value)} placeholder="0 = altezza automatica"/></label></div>
+    <p className="hint">Per una Brother a etichette adesive prova prima 62 mm di larghezza e 100-120 mm di altezza, poi stampa al 100% senza adattare alla pagina.</p>
     {message&&<p className="success">{message}</p>}<div className="settings-actions"><button className="primary" onClick={saved}><Save/> Salva configurazione ricevuta</button></div>
   </div>;
 }

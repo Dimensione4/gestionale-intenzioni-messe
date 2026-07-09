@@ -20,6 +20,11 @@ Il gestionale salva i dati operativi sul computer dell'utente. Il repository non
 
 I backup online devono essere cifrati prima dell'upload. Il collegamento Google Drive è disattivato di default e richiederà autorizzazione OAuth dell'utente.
 
+Guide operative:
+
+- [Configurazione Google Drive Backup](docs/GOOGLE_DRIVE_BACKUP.md)
+- [Test stampa Brother label printer](docs/TEST_STAMPA_BROTHER.md)
+
 ## Installazione per l'utente
 
 1. Copia su chiavetta uno dei file generati nella cartella `src-tauri/target/release/bundle/`:
@@ -82,6 +87,8 @@ src-tauri\target\release\bundle\nsis
 Per la stampante termica usa **Archivio -> Anteprima e stampa**. Il gestionale imposta automaticamente il formato carta della ricevuta in base alla configurazione `58mm` o `80mm`; nel pannello di stampa di Windows seleziona comunque la stampante termica corretta.
 
 Se la stampante offre opzioni come "Adatta alla pagina" o "A4", disattivale e usa il formato termico configurato. Le email lunghe vengono spezzate automaticamente per non uscire dai riquadri della ricevuta.
+
+Per stampanti Brother a etichette puoi impostare una larghezza/altezza personalizzata in **Impostazioni -> Configuratore ricevuta**. Per un primo test prova `62mm x 100mm`, stampa al 100% e disattiva ogni adattamento pagina.
 
 ## Aggiornamenti automatici
 

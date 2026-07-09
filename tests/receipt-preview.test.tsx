@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Archive, receiptPageHeightMm, receiptPrintTitle } from "../src/App";
+import { Archive, receiptPageHeightMm, receiptPaperDimensions, receiptPrintTitle } from "../src/App";
 import type { MassIntention, ParishSettings } from "../src/lib/db";
 
 afterEach(cleanup);
@@ -17,6 +17,13 @@ describe("anteprima ricevuta",()=>{
     const settings:ParishSettings={parish_name:"S. Giovanni Battista",address:"",phone:"",email:"",default_offering_cents:1500,max_intentions_per_mass:3,receipt_paper_size:"58mm",priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:""};
 
     expect(receiptPrintTitle(item,settings)).toBe("Ricevuta n 7 - Maria Vittoria Bolognini - 2026-07-09 - S. Giovanni Battista");
+  });
+
+  it("supporta dimensioni personalizzate per stampanti a etichette",()=>{
+    const settings:ParishSettings={parish_name:"Test",address:"",phone:"",email:"",default_offering_cents:1500,max_intentions_per_mass:3,receipt_paper_size:"58mm",priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_custom_width_mm:62,receipt_custom_height_mm:100};
+
+    expect(receiptPaperDimensions(settings,480)).toEqual({width:62,height:100,custom:true});
+    expect(receiptPaperDimensions({...settings,receipt_custom_width_mm:0,receipt_custom_height_mm:0},480)).toEqual({width:58,height:131,custom:false});
   });
 
   it("rispetta la configurazione ed evita comandi di chiusura duplicati",async()=>{

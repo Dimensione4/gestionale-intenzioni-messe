@@ -245,6 +245,12 @@ pub fn run() {
                             sql: include_str!("../migrations/007_backup_settings.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 8,
+                            description: "receipt custom label",
+                            sql: include_str!("../migrations/008_receipt_custom_label.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
