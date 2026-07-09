@@ -6,14 +6,16 @@ export type ParishSettings = {
   default_offering_cents: number; max_intentions_per_mass: number;
   receipt_paper_size: "58mm" | "80mm";
   priest_first_name:string; priest_last_name:string; primary_color:string; accent_color:string; logo_data_url:string;
+  receipt_show_address?:number; receipt_show_contacts?:number; receipt_show_priest?:number; receipt_show_offerer?:number;
+  receipt_show_intention?:number; receipt_show_mass?:number; receipt_show_offering?:number; receipt_custom_message?:string;
 };
-const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"" };
+const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_show_address:1,receipt_show_contacts:1,receipt_show_priest:1,receipt_show_offerer:1,receipt_show_intention:1,receipt_show_mass:1,receipt_show_offering:1,receipt_custom_message:"Grazie" };
 let connection: Promise<Database> | undefined;
 const db = () => connection ??= Database.load("sqlite:gestionale.sqlite");
 
 export async function loadSettings(): Promise<ParishSettings> {
-  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url FROM parish_settings WHERE id=1");
-  return rows[0] ?? defaults;
+  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url,receipt_show_address,receipt_show_contacts,receipt_show_priest,receipt_show_offerer,receipt_show_intention,receipt_show_mass,receipt_show_offering,receipt_custom_message FROM parish_settings WHERE id=1");
+  return {...defaults,...rows[0]};
 }
 export async function saveSettings(v: ParishSettings) {
   await (await db()).execute(
@@ -22,6 +24,7 @@ export async function saveSettings(v: ParishSettings) {
      ON CONFLICT(id) DO UPDATE SET parish_name=$1,address=$2,phone=$3,email=$4,default_offering_cents=$5,max_intentions_per_mass=$6,receipt_paper_size=$7,updated_at=datetime('now')`,
     [v.parish_name,v.address,v.phone,v.email,v.default_offering_cents,v.max_intentions_per_mass,v.receipt_paper_size]);
   await (await db()).execute("UPDATE parish_settings SET priest_first_name=$1,priest_last_name=$2,primary_color=$3,accent_color=$4,logo_data_url=$5 WHERE id=1",[v.priest_first_name,v.priest_last_name,v.primary_color,v.accent_color,v.logo_data_url]);
+  await (await db()).execute("UPDATE parish_settings SET receipt_show_address=$1,receipt_show_contacts=$2,receipt_show_priest=$3,receipt_show_offerer=$4,receipt_show_intention=$5,receipt_show_mass=$6,receipt_show_offering=$7,receipt_custom_message=$8 WHERE id=1",[v.receipt_show_address??1,v.receipt_show_contacts??1,v.receipt_show_priest??1,v.receipt_show_offerer??1,v.receipt_show_intention??1,v.receipt_show_mass??1,v.receipt_show_offering??1,v.receipt_custom_message??"Grazie"]);
 }
 
 export type NewIntention = {

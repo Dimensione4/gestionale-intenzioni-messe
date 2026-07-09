@@ -11,6 +11,7 @@ import { getCelebrationOfDay } from "./lib/saints";
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
   const [page,setPage]=useState<"calendar"|"archive"|"settings">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
+  const [settingsStart,setSettingsStart]=useState<"parish"|"receipt">("parish");
   useEffect(()=>{invoke<boolean>("has_password").then(v=>setSetup(!v)).finally(()=>setLoading(false))},[]);
   useEffect(()=>{if(authenticated)loadSettings().then(setSettings)},[authenticated]);
   useEffect(()=>{if(!settings)return;document.documentElement.style.setProperty("--primary",settings.primary_color);document.documentElement.style.setProperty("--primary-deep",settings.primary_color);document.documentElement.style.setProperty("--accent",settings.accent_color)},[settings]);
@@ -20,9 +21,9 @@ export function App() {
   return <div className="shell"><aside><div className="brand">{settings?.logo_data_url?<img src={settings.logo_data_url} alt="Logo parrocchia"/>:<Church size={34}/>}<span>{settings?.parish_name??"Gestionale Messe"}</span></div>
     <nav><button className={page==="calendar"?"active":""} onClick={()=>setPage("calendar")}><CalendarDays/> Calendario</button>
     <button className={page==="archive"?"active":""} onClick={()=>setPage("archive")}><ArchiveIcon/> Archivio</button>
-    <button className={page==="settings"?"active":""} onClick={()=>setPage("settings")}><Cog/> Impostazioni</button></nav>
+    <button className={page==="settings"?"active":""} onClick={()=>{setSettingsStart("parish");setPage("settings")}}><Cog/> Impostazioni</button></nav>
     <button className="logout" onClick={()=>setAuthenticated(false)}><LogOut/> Esci</button></aside>
-    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings}/>:<Settings value={settings} changed={setSettings}/>}</main></div>;
+    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}</main></div>;
 }
 
 function Login({setup,done}:{setup:boolean;done:()=>void}) {
@@ -79,7 +80,7 @@ function PrintIntentionsDialog({month,repository,close}:{month:Date;repository:I
     {period!=="month"&&<div className="print-dates"><label>Dal giorno<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>{period==="range"&&<label>Al giorno<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>}</div>}
     <label className="check-field"><input type="checkbox" checked={offerings} onChange={e=>setOfferings(e.target.checked)}/> Includi importi delle offerte</label>{error&&<p className="error">{error}</p>}</div>
     <PrintIntentionsReport items={items} from={bounds()[0]} to={bounds()[1]} offerings={offerings}/>
-    <div className="actions no-print"><button onClick={close}>Annulla</button><button className="primary" disabled={printing} onClick={print}><Printer/> {printing?"Preparazione…":"Stampa elenco"}</button></div></div></div>;
+    <div className="actions no-print"><button className="primary" disabled={printing} onClick={print}><Printer/> {printing?"Preparazione…":"Stampa elenco"}</button></div></div></div>;
 }
 
 function PrintIntentionsReport({items,from,to,offerings}:{items:MassIntention[];from:string;to:string;offerings:boolean}){
@@ -128,14 +129,14 @@ function IntentionDialog({initialDate,initialTime,initialRecord,repository,close
       <label>Offerta (€)<input required type="number" min="0" step=".01" value={form.offering_cents/100} onChange={e=>field("offering_cents",Math.round(+e.target.value*100))}/></label>
       <label>Pagamento<select value={form.payment_method} onChange={e=>field("payment_method",e.target.value)}><option>Contanti</option><option>Bonifico</option><option>Altro</option></select></label>
       <label className="wide">Note interne<textarea rows={2} value={form.internal_notes} onChange={e=>field("internal_notes",e.target.value)}/></label>
-    </div>{error&&<p className="error" role="alert">{error}</p>}<div className="actions"><button type="button" onClick={close}>Annulla</button><button className="primary" disabled={saving}>{saving?"Salvataggio…":initialRecord?"Salva modifiche":"Salva intenzione"}</button></div></form>
+    </div>{error&&<p className="error" role="alert">{error}</p>}<div className="actions"><button className="primary" disabled={saving}>{saving?"Salvataggio…":initialRecord?"Salva modifiche":"Salva intenzione"}</button></div></form>
   </div></div>;
 }
 
 type ArchiveRepository={list:typeof loadArchive;logs:typeof loadAuditLogs;cancel:typeof cancelReceipt;remove:typeof deleteIntention;restore:typeof restoreIntention;exporter?:(content:string)=>Promise<string>};
 const defaultArchiveRepository:ArchiveRepository={list:loadArchive,logs:loadAuditLogs,cancel:cancelReceipt,remove:deleteIntention,restore:restoreIntention,exporter:(content)=>invoke<string>("export_archive_csv",{content})};
 
-export function Archive({settings,repository=defaultArchiveRepository}:{settings:ParishSettings|null;repository?:ArchiveRepository}){
+export function Archive({settings,repository=defaultArchiveRepository,configureReceipt}:{settings:ParishSettings|null;repository?:ArchiveRepository;configureReceipt?:()=>void}){
   const [items,setItems]=useState<MassIntention[]>([]),[logs,setLogs]=useState<AuditLog[]>([]),[view,setView]=useState<"records"|"trash"|"history">("records"),[query,setQuery]=useState(""),[sort,setSort]=useState<"receipt"|"date-desc"|"date-asc"|"remembered">("receipt"),[from,setFrom]=useState(""),[to,setTo]=useState(""),[exportMessage,setExportMessage]=useState(""),[receipt,setReceipt]=useState<MassIntention|null>(null),[restoring,setRestoring]=useState<MassIntention|null>(null),[cancelling,setCancelling]=useState<MassIntention|null>(null),[deleting,setDeleting]=useState<MassIntention|null>(null),[error,setError]=useState("");
   const refresh=()=>repository.list().then(setItems).catch(e=>setError(String(e)));
   useEffect(()=>{refresh();repository.logs().then(setLogs)},[]);
@@ -158,7 +159,7 @@ export function Archive({settings,repository=defaultArchiveRepository}:{settings
       <div className="receipt-actions"><span className={item.status==="deleted"||item.receipt_status==="cancelled"?"cancelled":""}>{item.status==="deleted"?"Eliminata":item.receipt_number==null?"Senza ricevuta":"Ricevuta n. "+item.receipt_number+(item.receipt_status==="cancelled"?" · annullata":"")}</span>{item.status==="deleted"?<button className="restore-action" onClick={()=>setRestoring(item)}><RotateCcw/> Ripristina intenzione</button>:item.receipt_number==null?<button className="delete-action" onClick={()=>setDeleting(item)}><Trash2/> Elimina intenzione</button>:<><button className="preview-action" onClick={()=>setReceipt(item)}><Printer/> Anteprima e stampa</button>{item.receipt_status!=="cancelled"&&<button className="cancel-action" onClick={()=>setCancelling(item)}>Annulla ricevuta</button>}</>}</div>
     </article>)}</div></div>
     :<div className="history-list">{logs.length===0?<p className="empty-state">Nessuna modifica registrata.</p>:logs.map(log=><article key={log.id}><span className={`history-action ${log.action}`}>{historyActionLabel(log.action)}</span><div><AuditDetails log={log}/><small>{new Date(log.created_at.replace(" ","T")+"Z").toLocaleString("it-IT")}</small></div></article>)}</div>}
-    {receipt&&<ReceiptPreview item={receipt} settings={settings} close={()=>setReceipt(null)}/>}
+    {receipt&&<ReceiptPreview item={receipt} settings={settings} close={()=>setReceipt(null)} configure={configureReceipt}/>}
     {restoring&&<ConfirmDialog title="Ripristinare questa intenzione?" body="Tornerà attiva nella giornata e nella fascia oraria originali, se c’è ancora disponibilità." confirmLabel="Ripristina intenzione" close={()=>setRestoring(null)} confirmed={async()=>{await repository.restore(restoring.id);setRestoring(null);await refresh();setLogs(await repository.logs())}}/>}
     {cancelling&&<ReasonDialog title="Annullare questa ricevuta?" body={`La ricevuta n. ${cancelling.receipt_number} resterà nello storico come annullata.`} label="Motivo dell’annullamento" confirmLabel="Annulla ricevuta" close={()=>setCancelling(null)} confirmed={async reason=>{await repository.cancel(cancelling.id,reason);setCancelling(null);await refresh();setLogs(await repository.logs())}}/>}
     {deleting&&<ReasonDialog title="Eliminare questa intenzione?" body="L’intenzione resterà nello storico e potrà essere ripristinata. Non esiste una ricevuta associata da annullare." label="Motivo dell’eliminazione" confirmLabel="Elimina intenzione" close={()=>setDeleting(null)} confirmed={async reason=>{await repository.remove(deleting.id,reason);setDeleting(null);await refresh();setLogs(await repository.logs())}}/>}
@@ -192,23 +193,30 @@ function ReasonDialog({title,body,label,confirmLabel,close,confirmed}:{title:str
   return <div className="modal-backdrop"><div className="dialog confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="reason-title"><h2 id="reason-title">{title}</h2><p>{body}</p><label>{label}<input required autoFocus value={reason} onChange={e=>setReason(e.target.value)}/></label>{error&&<p className="error">{error}</p>}<div className="actions"><button onClick={close}>Annulla</button><button disabled={busy} className="danger-button" onClick={async()=>{if(!reason.trim())return setError("Il motivo è obbligatorio.");setBusy(true);try{await confirmed(reason)}catch(e){setError(String(e));setBusy(false)}}}>{busy?"Operazione in corso…":confirmLabel}</button></div></div></div>;
 }
 
-function ReceiptPreview({item,settings,close}:{item:MassIntention;settings:ParishSettings|null;close:()=>void}){
+function ReceiptPreview({item,settings,close,configure}:{item:MassIntention;settings:ParishSettings|null;close:()=>void;configure?:()=>void}){
   return <div className="modal-backdrop"><div className="dialog receipt-dialog" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
-    <div className="dialog-head no-print"><h2 id="receipt-title">Anteprima ricevuta</h2><button onClick={close}>Chiudi ×</button></div>
-    <div className={`receipt ${settings?.receipt_paper_size??"58mm"}`}><h2>{settings?.parish_name??"Parrocchia"}</h2><p>{settings?.address}</p>{(settings?.priest_first_name||settings?.priest_last_name)&&<p>Parroco: Don {`${settings.priest_first_name} ${settings.priest_last_name}`.trim()}</p>}<hr/><strong>RICEVUTA N. {item.receipt_number}</strong>
-      <p>Ricevuta da: {`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||"—"}</p><p>Intenzione:<br/><strong>{item.intention_text}</strong></p>
-      <p>Messa: {item.mass_date} ore {item.mass_time}</p><p>Offerta: <strong>€ {(item.offering_cents/100).toFixed(2)}</strong></p><hr/><p>Grazie</p></div>
-    <div className="actions no-print"><button onClick={close}>Chiudi</button><button className="primary" onClick={()=>window.print()}><Printer/> Stampa ricevuta</button></div>
+    <div className="dialog-head no-print"><div><p className="eyebrow">Documento termico</p><h2 id="receipt-title">Anteprima ricevuta</h2></div><button className="close-button" onClick={close}><X/> Chiudi anteprima</button></div>
+    <div className={`receipt ${settings?.receipt_paper_size??"58mm"}`}><section className="receipt-parish"><h2>{settings?.parish_name??"Parrocchia"}</h2>
+      {settings?.receipt_show_address!==0&&settings?.address&&<p>{settings.address}</p>}
+      {settings?.receipt_show_contacts!==0&&(settings?.phone||settings?.email)&&<p>{[settings.phone,settings.email].filter(Boolean).join(" · ")}</p>}
+      {settings?.receipt_show_priest!==0&&(settings?.priest_first_name||settings?.priest_last_name)&&<p>Parroco: Don {`${settings.priest_first_name} ${settings.priest_last_name}`.trim()}</p>}</section>
+      <section className="receipt-number"><span>Ricevuta</span><strong>N. {item.receipt_number}</strong><small>del {new Date(`${item.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</small></section>
+      {settings?.receipt_show_offerer!==0&&<section className="receipt-block"><span>Ricevuta da</span><strong>{`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||"Non indicato"}</strong></section>}
+      {settings?.receipt_show_intention!==0&&<section className="receipt-block"><span>Intenzione</span><strong>{item.intention_text||item.remembered_person||"Non indicata"}</strong></section>}
+      {settings?.receipt_show_mass!==0&&<section className="receipt-row"><span>Santa Messa</span><strong>{item.mass_date}, ore {item.mass_time}</strong></section>}
+      {settings?.receipt_show_offering!==0&&<section className="receipt-row"><span>Offerta</span><strong>€ {(item.offering_cents/100).toFixed(2)}</strong></section>}
+      {settings?.receipt_custom_message&&<p className="receipt-message">{settings.receipt_custom_message}</p>}</div>
+    <div className="receipt-dialog-actions no-print">{configure&&<button className="secondary-button" onClick={()=>{close();configure()}}><Cog/> Configura ricevuta</button>}<button className="primary" onClick={()=>window.print()}><Printer/> Stampa ricevuta</button></div>
   </div></div>;
 }
 
-function Settings({value,changed}:{value:ParishSettings|null;changed:(v:ParishSettings)=>void}){
-  const [form,setForm]=useState(value),[section,setSection]=useState<"parish"|"schedules"|"appearance"|"user"|"backup">("parish"),[message,setMessage]=useState("");
+function Settings({value,changed,initialSection="parish"}:{value:ParishSettings|null;changed:(v:ParishSettings)=>void;initialSection?:"parish"|"receipt"}){
+  const [form,setForm]=useState(value),[section,setSection]=useState<"parish"|"schedules"|"receipt"|"appearance"|"user"|"backup">(initialSection),[message,setMessage]=useState("");
   useEffect(()=>{if(!form)loadSettings().then(v=>{setForm(v);changed(v)})},[form,changed]);
   if(!form)return <p>Caricamento impostazioni…</p>;
   const field=(key:keyof ParishSettings,val:string|number)=>setForm({...form,[key]:val});
   async function submit(e:React.FormEvent){e.preventDefault();await saveSettings(form!);changed(form!);setMessage("Impostazioni salvate correttamente.");}
-  const sections=[["parish","Parrocchia",Church],["schedules","Orari delle messe",CalendarDays],["appearance","Aspetto e logo",Palette],["user","Utente e sicurezza",Shield],["backup","Backup e ripristino",RotateCcw]] as const;
+  const sections=[["parish","Parrocchia",Church],["schedules","Orari delle messe",CalendarDays],["receipt","Configuratore ricevuta",Printer],["appearance","Aspetto e logo",Palette],["user","Utente e sicurezza",Shield],["backup","Backup e ripristino",RotateCcw]] as const;
   return <section><header><div><p className="eyebrow">Configurazione</p><h1>Impostazioni</h1><p className="page-subtitle">Scegli una sezione e modifica solo ciò che ti serve.</p></div></header>
     <div className="settings-layout"><nav className="settings-nav" aria-label="Sezioni impostazioni">{sections.map(([key,label,Icon])=><button key={key} className={section===key?"active":""} onClick={()=>{setSection(key);setMessage("")}}><Icon/> {label}</button>)}</nav>
     <div className="settings-panel">
@@ -221,6 +229,7 @@ function Settings({value,changed}:{value:ParishSettings|null;changed:(v:ParishSe
         <label>Formato ricevuta<select value={form.receipt_paper_size} onChange={e=>field("receipt_paper_size",e.target.value)}><option>58mm</option><option>80mm</option></select></label></div>
         {message&&<p className="success">{message}</p>}<button className="primary"><Save/> Salva configurazione</button></form>}
       {section==="schedules"&&<ScheduleSettings/>}
+      {section==="receipt"&&<ReceiptSettings form={form} field={field} saved={async()=>{await saveSettings(form);changed(form);setMessage("Configurazione ricevuta salvata.")}} message={message}/>}
       {section==="appearance"&&<AppearanceSettings form={form} field={field} saved={async()=>{await saveSettings(form);changed(form);setMessage("Aspetto aggiornato.")}} message={message}/>}
       {section==="user"&&<PasswordSettings/>}
       {section==="backup"&&<BackupSettings/>}
@@ -228,11 +237,20 @@ function Settings({value,changed}:{value:ParishSettings|null;changed:(v:ParishSe
   </section>;
 }
 
+function ReceiptSettings({form,field,saved,message}:{form:ParishSettings;field:(key:keyof ParishSettings,val:string|number)=>void;saved:()=>Promise<void>;message:string}){
+  const choices=[["receipt_show_address","Indirizzo della parrocchia"],["receipt_show_contacts","Telefono ed email"],["receipt_show_priest","Nome del sacerdote"],["receipt_show_offerer","Nome dell’offerente"],["receipt_show_intention","Testo dell’intenzione"],["receipt_show_mass","Data e ora della messa"],["receipt_show_offering","Importo dell’offerta"]] as const;
+  return <div><h2>Configuratore ricevuta</h2><p>Scegli quali informazioni stampare. Nome della parrocchia, numero e data della ricevuta restano sempre presenti.</p>
+    <fieldset className="receipt-options"><legend>Informazioni da mostrare</legend>{choices.map(([key,label])=><label key={key}><input type="checkbox" checked={form[key]!==0} onChange={e=>field(key,e.target.checked?1:0)}/><span>{label}</span></label>)}</fieldset>
+    <div className="form-grid"><label>Formato carta<select value={form.receipt_paper_size} onChange={e=>field("receipt_paper_size",e.target.value)}><option>58mm</option><option>80mm</option></select></label><label>Messaggio finale<input value={form.receipt_custom_message} onChange={e=>field("receipt_custom_message",e.target.value)} placeholder="Per esempio: Grazie"/></label></div>
+    {message&&<p className="success">{message}</p>}<div className="settings-actions"><button className="primary" onClick={saved}><Save/> Salva configurazione ricevuta</button></div>
+  </div>;
+}
+
 function AppearanceSettings({form,field,saved,message}:{form:ParishSettings;field:(key:keyof ParishSettings,val:string|number)=>void;saved:()=>Promise<void>;message:string}){
   function upload(file?:File){if(!file)return;const reader=new FileReader();reader.onload=()=>field("logo_data_url",String(reader.result));reader.readAsDataURL(file)}
   return <div><h2>Aspetto e logo</h2><p>Personalizza i colori principali e il simbolo mostrato nella barra laterale.</p><div className="appearance-preview" style={{background:form.primary_color}}>{form.logo_data_url?<img src={form.logo_data_url} alt="Anteprima logo"/>:<Church/>}<strong>{form.parish_name}</strong></div>
     <div className="form-grid"><label>Colore principale<input type="color" value={form.primary_color} onChange={e=>field("primary_color",e.target.value)}/></label><label>Colore evidenziazione<input type="color" value={form.accent_color} onChange={e=>field("accent_color",e.target.value)}/></label><label className="wide">Logo della parrocchia<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={e=>upload(e.target.files?.[0])}/></label></div>
-    {form.logo_data_url&&<button className="secondary-button" onClick={()=>field("logo_data_url","")}>Rimuovi logo</button>} {message&&<p className="success">{message}</p>}<button className="primary" onClick={saved}><Save/> Salva aspetto</button></div>;
+    {message&&<p className="success">{message}</p>}<div className="settings-actions">{form.logo_data_url&&<button className="secondary-button" onClick={()=>field("logo_data_url","")}>Rimuovi logo</button>}<button className="primary" onClick={saved}><Save/> Salva aspetto</button></div></div>;
 }
 
 function BackupSettings(){

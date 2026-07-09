@@ -75,7 +75,8 @@ pub fn run(){
   tauri_plugin_sql::Migration{version:2,description:"intention integrity",sql:include_str!("../migrations/002_intention_integrity.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
   tauri_plugin_sql::Migration{version:3,description:"history and personalization",sql:include_str!("../migrations/003_history_and_personalization.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
   tauri_plugin_sql::Migration{version:4,description:"atomic history",sql:include_str!("../migrations/004_atomic_history.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
-  tauri_plugin_sql::Migration{version:5,description:"audit before after",sql:include_str!("../migrations/005_audit_before_after.sql"),kind:tauri_plugin_sql::MigrationKind::Up}
+  tauri_plugin_sql::Migration{version:5,description:"audit before after",sql:include_str!("../migrations/005_audit_before_after.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
+  tauri_plugin_sql::Migration{version:6,description:"receipt configuration",sql:include_str!("../migrations/006_receipt_configuration.sql"),kind:tauri_plugin_sql::MigrationKind::Up}
  ]).build()).invoke_handler(tauri::generate_handler![has_password,set_initial_password,verify_password,change_password,delete_account,new_backup_path,export_archive_csv,restore_latest_backup])
  .run(tauri::generate_context!()).expect("errore durante l'avvio dell'applicazione");
 }
