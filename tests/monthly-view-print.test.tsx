@@ -29,7 +29,9 @@ describe("viste e stampa mensile",()=>{
   it("mostra le intenzioni nella vista elenco mensile",async()=>{
     render(<Calendar repository={repository()}/>);
     fireEvent.click(screen.getByRole("button",{name:/elenco mensile/i}));
-    expect(await screen.findByText("Famiglia Rossi")).toBeInTheDocument();
+    const name=await screen.findByText("Famiglia Rossi");
+    expect(name.tagName).toBe("STRONG");
+    expect(name.closest("button")).toHaveClass("has-intention");
     expect(screen.queryByText("Ricordiamo con affetto la famiglia Rossi")).not.toBeInTheDocument();
     expect(screen.getByText("Registrata")).toBeInTheDocument();
   });

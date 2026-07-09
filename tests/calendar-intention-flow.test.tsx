@@ -76,6 +76,7 @@ describe("flusso intenzione dal calendario", () => {
     await waitFor(() =>
       expect(screen.getByText("Maria Rossi")).toBeInTheDocument(),
     );
+    expect(screen.getByText("Maria Rossi").closest("small")).toHaveClass("filled");
     expect(screen.queryByText("Ricordiamo con affetto Maria Rossi")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: /nuova intenzione/i }),
