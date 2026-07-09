@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Archive, receiptPageHeightMm } from "../src/App";
 import type { MassIntention, ParishSettings } from "../src/lib/db";
@@ -45,5 +46,14 @@ describe("anteprima ricevuta",()=>{
     expect(email).toHaveClass("receipt-contact");
     expect(phone.parentElement).toBe(email.parentElement);
     expect(phone.nextSibling).toBe(email);
+  });
+
+  it("in stampa rimuove dal layout il gestionale sotto la ricevuta",()=>{
+    const css=readFileSync("src/modal.css","utf8");
+
+    expect(css).toContain("body:has(.receipt-dialog) .shell > aside");
+    expect(css).toContain("body:has(.receipt-dialog) main > section > :not(.modal-backdrop)");
+    expect(css).toContain("display: none !important");
+    expect(css).toContain("body:has(.receipt-dialog) .receipt { position: static");
   });
 });

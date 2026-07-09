@@ -42,9 +42,16 @@ textarea { font: inherit; padding: 10px 14px; border: 2px solid #b8bec5; border-
 .confirm-dialog blockquote { margin: 18px 0; padding: 14px; color: #34404c; background: #eef1f4; border-radius: 8px; }
 .confirm-dialog .actions { margin-top: 26px; }
 @media print {
-  html, body { width: auto; min-width: 0; margin: 0; padding: 0; background: #fff; }
+  html, body { width: auto; min-width: 0; min-height: 0; margin: 0; padding: 0; background: #fff; }
   body * { visibility: hidden; }
   .receipt, .receipt *, .print-report, .print-report * { visibility: visible; }
+  body:has(.receipt-dialog) .shell { display: block; min-height: 0; }
+  body:has(.receipt-dialog) .shell > aside,
+  body:has(.receipt-dialog) main > section > :not(.modal-backdrop) { display: none !important; }
+  body:has(.receipt-dialog) .shell > main { display: block; padding: 0; }
+  body:has(.receipt-dialog) .modal-backdrop { position: static; inset: auto; display: block; min-height: 0; padding: 0; background: #fff; }
+  body:has(.receipt-dialog) .dialog { width: auto; max-height: none; overflow: visible; padding: 0; border-radius: 0; box-shadow: none; }
+  body:has(.receipt-dialog) .receipt { position: static; left: auto; top: auto; margin: 0; page-break-after: avoid; break-after: avoid; }
   .receipt { display: block; position: absolute; left: 0; top: 0; margin: 0; }
   .print-report { display: block; position: absolute; left: 0; top: 0; margin: 0; width: 100%; }
   .no-print { display: none !important; }
