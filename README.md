@@ -84,7 +84,8 @@ Questo aggiunge:
 Gli aggiornamenti devono essere firmati. Tauri non permette aggiornamenti non firmati.
 
 ```powershell
-npm run tauri signer generate -- -w "$env:USERPROFILE\\.tauri\\gestionale-intenzioni-messe.key"
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.tauri"
+npx tauri signer generate --write-keys "$env:USERPROFILE\.tauri\gestionale-intenzioni-messe.key"
 ```
 
 Conserva con attenzione:
