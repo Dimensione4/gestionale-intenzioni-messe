@@ -1,4 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
+import { invoke } from "@tauri-apps/api/core";
 
 export type ParishSettings = {
   parish_name: string; address: string; phone: string; email: string;
@@ -44,10 +45,9 @@ export async function createIntention(v:NewIntention,maximum:number):Promise<Mas
   if((rows[0]?.count??0)>=maximum)throw new Error(`Limite di ${maximum} intenzioni raggiunto per questa messa.`);
   const result=await database.execute(`INSERT INTO mass_intentions(mass_date,mass_time,offerer_first_name,offerer_last_name,offerer_phone,intention_text,remembered_person,offering_cents,payment_method,internal_notes,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,datetime('now'),datetime('now'))`,[v.mass_date,v.mass_time,v.offerer_first_name,v.offerer_last_name,v.offerer_phone,v.intention_text,v.remembered_person,v.offering_cents,v.payment_method,v.internal_notes]);
   const id=Number(result.lastInsertId);
-  const next=await database.select<{number:number}[]>("SELECT COALESCE(MAX(receipt_number),0)+1 AS number FROM receipts");
-  const receiptNumber=next[0]?.number??1;
-  await database.execute("INSERT INTO receipts(receipt_number,intention_id,receipt_date,amount_cents,status,created_at,updated_at) VALUES($1,$2,date('now'),$3,'valid',datetime('now'),datetime('now'))",[receiptNumber,id,v.offering_cents]);
-  await database.execute("INSERT INTO audit_logs(action,entity_type,entity_id,details,created_at) VALUES('create','mass_intention',$1,$2,datetime('now'))",[id,`Ricevuta ${receiptNumber}`]);
+  const receipt=await database.select<{receipt_number:number}[]>("SELECT receipt_number FROM receipts WHERE intention_id=$1",[id]);
+  const receiptNumber=receipt[0]?.receipt_number;
+  if(!receiptNumber)throw new Error("La ricevuta non è stata generata.");
   return {...v,id,status:"active",receipt_number:receiptNumber,receipt_status:"valid"};
 }
 
@@ -61,4 +61,27 @@ export async function cancelReceipt(intentionId:number,reason:string) {
   const database=await db();
   await database.execute("UPDATE receipts SET status='cancelled',cancelled_reason=$1,updated_at=datetime('now') WHERE intention_id=$2",[reason,intentionId]);
   await database.execute("INSERT INTO audit_logs(action,entity_type,entity_id,details,created_at) VALUES('cancel','receipt',$1,$2,datetime('now'))",[intentionId,reason]);
+}
+
+export async function createBackup():Promise<string> {
+  const path=await invoke<string>("new_backup_path");
+  await (await db()).execute(`VACUUM INTO '${path.replaceAll("'","''")}'`);
+  return path;
+}
+
+export type MassScheduleRule={id?:number;weekday:number;time:string;max_intentions:number|null};
+const defaultSchedules:MassScheduleRule[]=[
+  ...[1,2,3,4,5].flatMap(weekday=>[{weekday,time:"08:30",max_intentions:null},{weekday,time:"18:00",max_intentions:null}]),
+  {weekday:6,time:"18:00",max_intentions:null},
+  {weekday:0,time:"08:30",max_intentions:null},{weekday:0,time:"10:30",max_intentions:null},{weekday:0,time:"18:00",max_intentions:null},
+];
+export async function loadSchedules():Promise<MassScheduleRule[]> {
+  const database=await db();
+  let rows=await database.select<MassScheduleRule[]>("SELECT id,weekday,time,max_intentions FROM mass_schedule_rules WHERE is_active=1 ORDER BY weekday,time");
+  if(rows.length===0){await saveSchedules(defaultSchedules);rows=await database.select<MassScheduleRule[]>("SELECT id,weekday,time,max_intentions FROM mass_schedule_rules WHERE is_active=1 ORDER BY weekday,time")}
+  return rows;
+}
+export async function saveSchedules(rules:MassScheduleRule[]) {
+  const database=await db();await database.execute("DELETE FROM mass_schedule_rules");
+  for(const rule of rules)await database.execute("INSERT INTO mass_schedule_rules(weekday,time,max_intentions,is_active,created_at,updated_at) VALUES($1,$2,$3,1,datetime('now'),datetime('now'))",[rule.weekday,rule.time,rule.max_intentions]);
 }

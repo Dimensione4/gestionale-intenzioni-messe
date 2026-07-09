@@ -3,13 +3,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { Archive as ArchiveIcon, CalendarDays, Church, Download, LogOut, Printer, Save, Settings as Cog } from "lucide-react";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
-import { cancelReceipt, createIntention, loadArchive, loadIntentions, loadSettings, saveSettings } from "./lib/db";
-import type { MassIntention, NewIntention, ParishSettings } from "./lib/db";
+import { cancelReceipt, createBackup, createIntention, loadArchive, loadIntentions, loadSchedules, loadSettings, saveSchedules, saveSettings } from "./lib/db";
+import type { MassIntention, MassScheduleRule, NewIntention, ParishSettings } from "./lib/db";
 
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
   const [page,setPage]=useState<"calendar"|"archive"|"settings">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
   useEffect(()=>{invoke<boolean>("has_password").then(v=>setSetup(!v)).finally(()=>setLoading(false))},[]);
+  useEffect(()=>{if(authenticated)loadSettings().then(setSettings)},[authenticated]);
+  useEffect(()=>{if(!authenticated)return;const today=format(new Date(),"yyyy-MM-dd");if(localStorage.getItem("last-auto-backup")===today)return;createBackup().then(()=>localStorage.setItem("last-auto-backup",today)).catch(()=>undefined)},[authenticated]);
   if(loading)return <main className="center">Avvio del gestionale…</main>;
   if(!authenticated)return <Login setup={setup} done={()=>{setSetup(false);setAuthenticated(true)}}/>;
   return <div className="shell"><aside><div className="brand"><Church size={34}/><span>{settings?.parish_name??"Gestionale Messe"}</span></div>
@@ -34,21 +36,22 @@ function Login({setup,done}:{setup:boolean;done:()=>void}) {
     {error&&<p className="error" role="alert">{error}</p>}<button className="primary">{setup?"Crea password ed entra":"Entra"}</button></form></section></main>;
 }
 
-type IntentionRepository={list:typeof loadIntentions;settings:typeof loadSettings;create:typeof createIntention};
-const defaultRepository:IntentionRepository={list:loadIntentions,settings:loadSettings,create:createIntention};
+type IntentionRepository={list:typeof loadIntentions;settings:typeof loadSettings;create:typeof createIntention;schedules?:typeof loadSchedules};
+const defaultRepository:IntentionRepository={list:loadIntentions,settings:loadSettings,create:createIntention,schedules:loadSchedules};
 
 export function Calendar({repository=defaultRepository}:{repository?:IntentionRepository}){
-  const [month,setMonth]=useState(new Date()),[selected,setSelected]=useState<string|null>(null),[intentions,setIntentions]=useState<MassIntention[]>([]),[notice,setNotice]=useState("");
+  const [month,setMonth]=useState(new Date()),[selected,setSelected]=useState<string|null>(null),[intentions,setIntentions]=useState<MassIntention[]>([]),[schedules,setSchedules]=useState<MassScheduleRule[]>([]),[notice,setNotice]=useState(""),[loadError,setLoadError]=useState("");
   const days=useMemo(()=>eachDayOfInterval({start:startOfMonth(month),end:endOfMonth(month)}),[month]);
   const blanks=(getDay(startOfMonth(month))+6)%7;
-  const refresh=()=>repository.list(format(startOfMonth(month),"yyyy-MM-dd"),format(endOfMonth(month),"yyyy-MM-dd")).then(setIntentions);
+  const refresh=()=>repository.list(format(startOfMonth(month),"yyyy-MM-dd"),format(endOfMonth(month),"yyyy-MM-dd")).then(items=>{setIntentions(items);setLoadError("")}).catch(e=>setLoadError(`Impossibile leggere il calendario: ${String(e)}`));
   useEffect(()=>{refresh()},[month]);
+  useEffect(()=>{repository.schedules?.().then(setSchedules)},[repository]);
   return <section><header><div><p className="eyebrow">Schermata principale</p><h1>Calendario messe</h1></div><button className="primary" onClick={()=>setSelected(format(new Date(),"yyyy-MM-dd"))}>+ Aggiungi intenzione</button></header>
-    <div className="card"><div className="month"><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1))}>← Mese precedente</button>
+    {loadError&&<p className="error" role="alert">{loadError}</p>}<div className="card"><div className="month"><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1))}>← Mese precedente</button>
     <h2>{format(month,"MMMM yyyy",{locale:it})}</h2><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1))}>Mese successivo →</button></div>
     <div className="week">{["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(x=><strong key={x}>{x}</strong>)}</div><div className="grid">
-    {Array.from({length:blanks},(_,i)=><span key={i}/>)}{days.map(day=>{const key=format(day,"yyyy-MM-dd"),items=intentions.filter(i=>i.mass_date===key);return <button key={key} onClick={()=>setSelected(key)} className={key===format(new Date(),"yyyy-MM-dd")?"today":""}>
-    <b>{format(day,"d")}</b><span className="day-lines">{items.length===0?<small>Nessuna intenzione</small>:items.slice(0,3).map(i=><small key={i.id}><strong>{i.mass_time}</strong> {i.intention_text}</small>)}{items.length>3&&<small>+ altre {items.length-3}</small>}</span></button>})}</div></div>
+    {Array.from({length:blanks},(_,i)=><span key={i}/>)}{days.map(day=>{const key=format(day,"yyyy-MM-dd"),items=intentions.filter(i=>i.mass_date===key),times=schedules.filter(s=>s.weekday===day.getDay()).map(s=>s.time);return <button key={key} onClick={()=>setSelected(key)} className={key===format(new Date(),"yyyy-MM-dd")?"today":""}>
+    <b>{format(day,"d")}</b><span className="day-lines">{items.map(i=><small key={i.id}><strong>{i.mass_time}</strong> {i.intention_text}</small>)}{items.length===0&&times.slice(0,3).map(time=><small key={time}><strong>{time}</strong> 0 intenzioni</small>)}{items.length===0&&times.length===0&&<small>Nessuna messa</small>}{items.length>3&&<small>+ altre {items.length-3}</small>}</span></button>})}</div></div>
     {notice&&<p className="toast" role="status">{notice}</p>}
     {selected&&<IntentionDialog initialDate={selected} repository={repository} close={()=>setSelected(null)} saved={record=>{setSelected(null);setIntentions(items=>[...items,record].sort((a,b)=>(a.mass_date+a.mass_time).localeCompare(b.mass_date+b.mass_time)));setNotice(`Intenzione salvata. Ricevuta n. ${record.receipt_number}.`);}}/>}
   </section>;
@@ -59,14 +62,14 @@ function IntentionDialog({initialDate,repository,close,saved}:{initialDate:strin
   const [maximum,setMaximum]=useState(3),[error,setError]=useState(""),[saving,setSaving]=useState(false);
   useEffect(()=>{repository.settings().then(s=>{setMaximum(s.max_intentions_per_mass);setForm(v=>({...v,offering_cents:s.default_offering_cents}))})},[repository]);
   const field=(key:keyof NewIntention,value:string|number)=>setForm({...form,[key]:value});
-  async function submit(e:React.FormEvent){e.preventDefault();setError("");if(!form.intention_text.trim()&&!form.offerer_first_name.trim())return setError("Scrivi il testo dell’intenzione oppure il nome dell’offerente.");if(form.offering_cents===0&&!confirm("L’offerta è pari a zero. Vuoi continuare?"))return;setSaving(true);try{saved(await repository.create(form,maximum))}catch(e){setError(typeof e==="string"?e:e instanceof Error?e.message:"Salvataggio non riuscito.")}finally{setSaving(false)}}
+  async function submit(e:React.FormEvent){e.preventDefault();setError("");if(!form.intention_text.trim()&&!form.offerer_first_name.trim())return setError("Scrivi il testo dell’intenzione oppure il nome dell’offerente.");if(!form.intention_text.trim()&&!confirm("Il testo dell’intenzione è vuoto. Vuoi continuare?"))return;if(form.offering_cents===0&&!confirm("L’offerta è pari a zero. Vuoi continuare?"))return;setSaving(true);try{saved(await repository.create(form,maximum))}catch(e){setError(typeof e==="string"?e:e instanceof Error?e.message:"Salvataggio non riuscito.")}finally{setSaving(false)}}
   return <div className="modal-backdrop"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="intention-title">
     <div className="dialog-head"><div><p className="eyebrow">Inserimento</p><h2 id="intention-title">Nuova intenzione</h2></div><button type="button" onClick={close}>Chiudi ×</button></div>
     <form onSubmit={submit}><div className="form-grid">
       <label>Data messa<input required type="date" value={form.mass_date} onChange={e=>field("mass_date",e.target.value)}/></label><label>Orario messa<input required type="time" value={form.mass_time} onChange={e=>field("mass_time",e.target.value)}/></label>
       <label>Nome offerente<input value={form.offerer_first_name} onChange={e=>field("offerer_first_name",e.target.value)}/></label><label>Cognome offerente<input value={form.offerer_last_name} onChange={e=>field("offerer_last_name",e.target.value)}/></label>
       <label>Telefono (facoltativo)<input value={form.offerer_phone} onChange={e=>field("offerer_phone",e.target.value)}/></label><label>Persona ricordata<input value={form.remembered_person} onChange={e=>field("remembered_person",e.target.value)}/></label>
-      <label className="wide">Testo intenzione<textarea required rows={3} value={form.intention_text} onChange={e=>field("intention_text",e.target.value)}/></label>
+      <label className="wide">Testo intenzione<textarea rows={3} value={form.intention_text} onChange={e=>field("intention_text",e.target.value)}/></label>
       <label>Offerta (€)<input required type="number" min="0" step=".01" value={form.offering_cents/100} onChange={e=>field("offering_cents",Math.round(+e.target.value*100))}/></label>
       <label>Pagamento<select value={form.payment_method} onChange={e=>field("payment_method",e.target.value)}><option>Contanti</option><option>Bonifico</option><option>Altro</option></select></label>
       <label className="wide">Note interne<textarea rows={2} value={form.internal_notes} onChange={e=>field("internal_notes",e.target.value)}/></label>
@@ -120,9 +123,30 @@ function Settings({value,changed}:{value:ParishSettings|null;changed:(v:ParishSe
     <label>Massimo intenzioni per messa<input type="number" min="1" value={form.max_intentions_per_mass} onChange={e=>field("max_intentions_per_mass",+e.target.value)}/></label>
     <label>Formato ricevuta<select value={form.receipt_paper_size} onChange={e=>field("receipt_paper_size",e.target.value)}><option>58mm</option><option>80mm</option></select></label></div>
     {message&&<p className="success">{message}</p>}<button className="primary"><Save/> Salva impostazioni</button>
+    <ScheduleSettings/>
+    <PasswordSettings/>
     <hr className="section-rule"/><h2>Backup e ripristino</h2><p>I backup vengono salvati nella cartella Documenti del computer.</p>
     {backupMessage&&<p className={backupMessage.startsWith("Errore")?"error":"success"}>{backupMessage}</p>}
-    <div className="actions"><button type="button" onClick={async()=>{try{setBackupMessage(`Backup creato in: ${await invoke<string>("create_backup")}`)}catch(e){setBackupMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button>
+    <div className="actions"><button type="button" onClick={async()=>{try{setBackupMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setBackupMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button>
     <button type="button" onClick={async()=>{if(!confirm("Ripristinare l’ultimo backup? Prima verrà creata una copia di sicurezza e l’app si riavvierà."))return;try{await invoke("restore_latest_backup")}catch(e){setBackupMessage(`Errore: ${String(e)}`)}}}>Ripristina ultimo backup</button></div>
     </form></section>;
+}
+
+function PasswordSettings(){
+  const [current,setCurrent]=useState(""),[next,setNext]=useState(""),[message,setMessage]=useState("");
+  async function change(){setMessage("");try{await invoke("change_password",{currentPassword:current,newPassword:next});setCurrent("");setNext("");setMessage("Password aggiornata correttamente.")}catch(e){setMessage(String(e))}}
+  return <div><hr className="section-rule"/><h2>Cambia password</h2><div className="form-grid"><label>Password attuale<input type="password" value={current} onChange={e=>setCurrent(e.target.value)}/></label><label>Nuova password (almeno 8 caratteri)<input type="password" value={next} onChange={e=>setNext(e.target.value)}/></label></div>
+    {message&&<p className={message.startsWith("Password aggiornata")?"success":"error"}>{message}</p>}<button type="button" onClick={change}>Aggiorna password</button></div>;
+}
+
+function ScheduleSettings(){
+  const names=["Domenica","Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato"];
+  const [rules,setRules]=useState<MassScheduleRule[]>([]),[message,setMessage]=useState("");
+  useEffect(()=>{loadSchedules().then(setRules)},[]);
+  function timesFor(day:number){return rules.filter(r=>r.weekday===day).map(r=>r.time).join(", ")}
+  function change(day:number,text:string){const other=rules.filter(r=>r.weekday!==day);const parsed=text.split(",").map(t=>t.trim()).filter(t=>/^\d{2}:\d{2}$/.test(t)).map(time=>({weekday:day,time,max_intentions:null}));setRules([...other,...parsed])}
+  return <div className="schedule-settings"><hr className="section-rule"/><h2>Orari standard delle messe</h2><p>Inserisci gli orari separati da virgola, nel formato 08:30, 18:00.</p>
+    <div className="form-grid">{names.map((name,day)=><label key={`${name}-${timesFor(day)}`}>{name}<input defaultValue={timesFor(day)} onBlur={e=>change(day,e.target.value)} placeholder="Nessuna messa"/></label>)}</div>
+    {message&&<p className="success">{message}</p>}<button type="button" onClick={async()=>{await saveSchedules(rules);setMessage("Orari delle messe salvati.")}}>Salva orari messe</button>
+  </div>;
 }
