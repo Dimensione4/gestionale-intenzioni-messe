@@ -34,7 +34,8 @@ describe("flusso intenzione dal calendario", () => {
           id: 1,
           mass_date: today,
           mass_time: "18:00",
-          intention_text: "Per Maria Rossi",
+          intention_text: "Ricordiamo con affetto Maria Rossi",
+          remembered_person: "Maria Rossi",
         },
       ]);
     const create = vi.fn(async (value: NewIntention, _maximum: number) => ({
@@ -51,9 +52,8 @@ describe("flusso intenzione dal calendario", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /aggiungi intenzione/i }),
     );
-    fireEvent.change(screen.getByLabelText(/testo intenzione/i), {
-      target: { value: "Per Maria Rossi" },
-    });
+    fireEvent.change(screen.getByLabelText(/persona ricordata/i), { target: { value: "Maria Rossi" } });
+    fireEvent.change(screen.getByLabelText(/testo intenzione/i), { target: { value: "Ricordiamo con affetto Maria Rossi" } });
     fireEvent.change(screen.getByLabelText(/^nome offerente$/i), {
       target: { value: "Giuseppe" },
     });
@@ -67,14 +67,16 @@ describe("flusso intenzione dal calendario", () => {
         mass_date: today,
         mass_time: "18:00",
         offerer_first_name: "Giuseppe",
-        intention_text: "Per Maria Rossi",
+        remembered_person: "Maria Rossi",
+        intention_text: "Ricordiamo con affetto Maria Rossi",
         offering_cents: 1500,
       }),
       3,
     );
     await waitFor(() =>
-      expect(screen.getByText("Per Maria Rossi")).toBeInTheDocument(),
+      expect(screen.getByText("Maria Rossi")).toBeInTheDocument(),
     );
+    expect(screen.queryByText("Ricordiamo con affetto Maria Rossi")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: /nuova intenzione/i }),
     ).not.toBeInTheDocument();

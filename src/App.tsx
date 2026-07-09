@@ -40,6 +40,10 @@ export function AppFooter({versionLoader=getVersion}:{versionLoader?:()=>Promise
   </footer>;
 }
 
+export function intentionCalendarLabel(item:Pick<MassIntention,"remembered_person"|"intention_text">){
+  return item.remembered_person?.trim()||item.intention_text?.trim()||"Intenzione senza testo";
+}
+
 function Login({setup,done}:{setup:boolean;done:()=>void}) {
   const [password,setPassword]=useState(""),[confirm,setConfirm]=useState(""),[error,setError]=useState("");
   async function submit(e:React.FormEvent){e.preventDefault();setError("");
@@ -72,7 +76,7 @@ export function Calendar({repository=defaultRepository}:{repository?:IntentionRe
     <h2>{format(month,"MMMM yyyy",{locale:it})}</h2><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1))}>Mese successivo →</button></div>
     {view==="calendar"?<><div className="week">{["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(x=><strong key={x}>{x}</strong>)}</div><div className="grid">
     {Array.from({length:blanks},(_,i)=><span key={i}/>)}{days.map(day=>{const key=format(day,"yyyy-MM-dd"),items=intentions.filter(i=>i.mass_date===key),times=schedules.filter(s=>s.weekday===day.getDay()).map(s=>s.time);return <button key={key} onClick={()=>setSelectedDay(key)} className={key===format(new Date(),"yyyy-MM-dd")?"today":""}>
-    <b>{format(day,"d")}</b><span className="day-lines">{items.slice(0,3).map(i=><small key={i.id}><strong>{i.mass_time}</strong> {i.intention_text}</small>)}{items.length===0&&times.slice(0,3).map(time=><small key={time}><strong>{time}</strong> 0 intenzioni</small>)}{items.length===0&&times.length===0&&<small>Nessuna messa</small>}{items.length>3&&<small>+ altre {items.length-3}</small>}</span></button>})}</div></>:<MonthlyList days={days} intentions={intentions} schedules={schedules} openDay={setSelectedDay}/>}</div>
+    <b>{format(day,"d")}</b><span className="day-lines">{items.slice(0,3).map(i=><small key={i.id}><strong>{i.mass_time}</strong> {intentionCalendarLabel(i)}</small>)}{items.length===0&&times.slice(0,3).map(time=><small key={time}><strong>{time}</strong> 0 intenzioni</small>)}{items.length===0&&times.length===0&&<small>Nessuna messa</small>}{items.length>3&&<small>+ altre {items.length-3}</small>}</span></button>})}</div></>:<MonthlyList days={days} intentions={intentions} schedules={schedules} openDay={setSelectedDay}/>}</div>
     {notice&&<p className="toast" role="status">{notice}</p>}
     {addRequest&&<IntentionDialog initialDate={addRequest.date} repository={repository} close={()=>setAddRequest(null)} saved={record=>{setAddRequest(null);setIntentions(items=>[...items,record].sort((a,b)=>(a.mass_date+a.mass_time).localeCompare(b.mass_date+b.mass_time)));setNotice(`Intenzione salvata. Ricevuta n. ${record.receipt_number}.`);}}/>}
     {printOpen&&<PrintIntentionsDialog month={month} repository={repository} close={()=>setPrintOpen(false)}/>}
@@ -80,7 +84,7 @@ export function Calendar({repository=defaultRepository}:{repository?:IntentionRe
 }
 
 function MonthlyList({days,intentions,schedules,openDay}:{days:Date[];intentions:MassIntention[];schedules:MassScheduleRule[];openDay:(date:string)=>void}){
-  const rows=days.flatMap(day=>{const date=format(day,"yyyy-MM-dd"),items=intentions.filter(i=>i.mass_date===date);if(items.length)return items.map(item=>({date,day,time:item.mass_time,text:item.intention_text,count:items.length}));return schedules.filter(s=>s.weekday===day.getDay()).map(s=>({date,day,time:s.time,text:"Nessuna intenzione",count:0}))});
+  const rows=days.flatMap(day=>{const date=format(day,"yyyy-MM-dd"),items=intentions.filter(i=>i.mass_date===date);if(items.length)return items.map(item=>({date,day,time:item.mass_time,text:intentionCalendarLabel(item),count:items.length}));return schedules.filter(s=>s.weekday===day.getDay()).map(s=>({date,day,time:s.time,text:"Nessuna intenzione",count:0}))});
   return <div className="monthly-list"><div className="monthly-list-head"><span>Giorno</span><span>Ora</span><span>Intenzione</span><span>Stato</span></div>{rows.length===0?<p className="empty-state">Nessuna messa o intenzione nel mese selezionato.</p>:rows.map((row,index)=><button key={`${row.date}-${row.time}-${index}`} onClick={()=>openDay(row.date)}><span><strong>{format(row.day,"d")}</strong> {format(row.day,"EEEE",{locale:it})}</span><span>{row.time}</span><span>{row.text}</span><span>{row.count>0?"Registrata":"Disponibile"}</span></button>)}</div>;
 }
 

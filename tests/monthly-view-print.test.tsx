@@ -11,7 +11,7 @@ const settings: ParishSettings = {
 };
 const today=format(new Date(),"yyyy-MM-dd");
 const record:MassIntention={id:1,mass_date:today,mass_time:"18:00",offerer_first_name:"",offerer_last_name:"",
-  offerer_phone:"",intention_text:"Per la famiglia Rossi",remembered_person:"",offering_cents:1500,
+  offerer_phone:"",intention_text:"Ricordiamo con affetto la famiglia Rossi",remembered_person:"Famiglia Rossi",offering_cents:1500,
   payment_method:"Contanti",internal_notes:"",status:"active",receipt_number:1};
 
 afterEach(()=>{cleanup();vi.restoreAllMocks()});
@@ -29,7 +29,8 @@ describe("viste e stampa mensile",()=>{
   it("mostra le intenzioni nella vista elenco mensile",async()=>{
     render(<Calendar repository={repository()}/>);
     fireEvent.click(screen.getByRole("button",{name:/elenco mensile/i}));
-    expect(await screen.findByText("Per la famiglia Rossi")).toBeInTheDocument();
+    expect(await screen.findByText("Famiglia Rossi")).toBeInTheDocument();
+    expect(screen.queryByText("Ricordiamo con affetto la famiglia Rossi")).not.toBeInTheDocument();
     expect(screen.getByText("Registrata")).toBeInTheDocument();
   });
 
