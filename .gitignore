@@ -11,6 +11,21 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.gimbackup
+*.key
+*.key.pub
+*.pem
+*.p12
+*.pfx
+backup/
+backups/
 src-tauri/target
 src-tauri/gen
 

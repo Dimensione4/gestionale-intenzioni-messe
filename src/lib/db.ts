@@ -8,13 +8,14 @@ export type ParishSettings = {
   priest_first_name:string; priest_last_name:string; primary_color:string; accent_color:string; logo_data_url:string;
   receipt_show_address?:number; receipt_show_contacts?:number; receipt_show_priest?:number; receipt_show_offerer?:number;
   receipt_show_intention?:number; receipt_show_mass?:number; receipt_show_offering?:number; receipt_custom_message?:string;
+  backup_frequency_hours?:6|12|24; online_backup_enabled?:number; online_backup_provider?:string; online_backup_account_email?:string; online_backup_encryption_enabled?:number;
 };
-const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_show_address:1,receipt_show_contacts:1,receipt_show_priest:1,receipt_show_offerer:1,receipt_show_intention:1,receipt_show_mass:1,receipt_show_offering:1,receipt_custom_message:"Grazie" };
+const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_show_address:1,receipt_show_contacts:1,receipt_show_priest:1,receipt_show_offerer:1,receipt_show_intention:1,receipt_show_mass:1,receipt_show_offering:1,receipt_custom_message:"Grazie",backup_frequency_hours:6,online_backup_enabled:0,online_backup_provider:"google_drive",online_backup_account_email:"",online_backup_encryption_enabled:1 };
 let connection: Promise<Database> | undefined;
 const db = () => connection ??= Database.load("sqlite:gestionale.sqlite");
 
 export async function loadSettings(): Promise<ParishSettings> {
-  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url,receipt_show_address,receipt_show_contacts,receipt_show_priest,receipt_show_offerer,receipt_show_intention,receipt_show_mass,receipt_show_offering,receipt_custom_message FROM parish_settings WHERE id=1");
+  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url,receipt_show_address,receipt_show_contacts,receipt_show_priest,receipt_show_offerer,receipt_show_intention,receipt_show_mass,receipt_show_offering,receipt_custom_message,backup_frequency_hours,online_backup_enabled,online_backup_provider,online_backup_account_email,online_backup_encryption_enabled FROM parish_settings WHERE id=1");
   return {...defaults,...rows[0]};
 }
 export async function saveSettings(v: ParishSettings) {
@@ -25,6 +26,7 @@ export async function saveSettings(v: ParishSettings) {
     [v.parish_name,v.address,v.phone,v.email,v.default_offering_cents,v.max_intentions_per_mass,v.receipt_paper_size]);
   await (await db()).execute("UPDATE parish_settings SET priest_first_name=$1,priest_last_name=$2,primary_color=$3,accent_color=$4,logo_data_url=$5 WHERE id=1",[v.priest_first_name,v.priest_last_name,v.primary_color,v.accent_color,v.logo_data_url]);
   await (await db()).execute("UPDATE parish_settings SET receipt_show_address=$1,receipt_show_contacts=$2,receipt_show_priest=$3,receipt_show_offerer=$4,receipt_show_intention=$5,receipt_show_mass=$6,receipt_show_offering=$7,receipt_custom_message=$8 WHERE id=1",[v.receipt_show_address??1,v.receipt_show_contacts??1,v.receipt_show_priest??1,v.receipt_show_offerer??1,v.receipt_show_intention??1,v.receipt_show_mass??1,v.receipt_show_offering??1,v.receipt_custom_message??"Grazie"]);
+  await (await db()).execute("UPDATE parish_settings SET backup_frequency_hours=$1,online_backup_enabled=$2,online_backup_provider=$3,online_backup_account_email=$4,online_backup_encryption_enabled=$5 WHERE id=1",[v.backup_frequency_hours??6,v.online_backup_enabled??0,v.online_backup_provider??"google_drive",v.online_backup_account_email??"",v.online_backup_encryption_enabled??1]);
 }
 
 export type NewIntention = {
@@ -85,9 +87,10 @@ export async function loadAuditLogs():Promise<AuditLog[]> {
   return (await db()).select<AuditLog[]>("SELECT id,action,entity_type,entity_id,details,created_at FROM audit_logs ORDER BY id DESC LIMIT 500");
 }
 
-export async function createBackup():Promise<string> {
+export async function createBackup(options?:{encryptPassphrase?:string}):Promise<string> {
   const path=await invoke<string>("new_backup_path");
   await (await db()).execute(`VACUUM INTO '${path.replaceAll("'","''")}'`);
+  if(options?.encryptPassphrase)return invoke<string>("encrypt_backup_file",{sourcePath:path,passphrase:options.encryptPassphrase});
   return path;
 }
 

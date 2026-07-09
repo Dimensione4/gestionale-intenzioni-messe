@@ -4,7 +4,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, CheckCircle2, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
+import { Archive as ArchiveIcon, ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Church, Cloud, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { cancelReceipt, createBackup, createIntention, deleteIntention, loadArchive, loadAuditLogs, loadIntentions, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention } from "./lib/db";
@@ -13,22 +13,25 @@ import { getCelebrationOfDay } from "./lib/saints";
 
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
-  const [page,setPage]=useState<"calendar"|"archive"|"settings">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
+  const [page,setPage]=useState<"calendar"|"archive"|"settings"|"tutorial">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
   const [settingsStart,setSettingsStart]=useState<"parish"|"receipt">("parish");
-  const [availableUpdate,setAvailableUpdate]=useState<Update|null>(null);
+  const [availableUpdate,setAvailableUpdate]=useState<Update|null>(null),[tutorialOpen,setTutorialOpen]=useState(false);
   useEffect(()=>{invoke<boolean>("has_password").then(v=>setSetup(!v)).finally(()=>setLoading(false))},[]);
   useEffect(()=>{if(authenticated)loadSettings().then(setSettings)},[authenticated]);
   useEffect(()=>{if(!settings)return;document.documentElement.style.setProperty("--primary",settings.primary_color);document.documentElement.style.setProperty("--primary-deep",settings.primary_color);document.documentElement.style.setProperty("--accent",settings.accent_color)},[settings]);
-  useEffect(()=>{if(!authenticated)return;const today=format(new Date(),"yyyy-MM-dd");if(localStorage.getItem("last-auto-backup")===today)return;createBackup().then(()=>localStorage.setItem("last-auto-backup",today)).catch(()=>undefined)},[authenticated]);
+  useEffect(()=>{if(!authenticated||!settings)return;const run=()=>{const frequency=(settings.backup_frequency_hours??6)*60*60*1000,last=Number(localStorage.getItem("last-auto-backup-at")??0);if(Date.now()-last<frequency)return;createBackup().then(()=>localStorage.setItem("last-auto-backup-at",String(Date.now()))).catch(()=>undefined)};run();const timer=window.setInterval(run,15*60*1000);return()=>window.clearInterval(timer)},[authenticated,settings]);
   useEffect(()=>{if(!authenticated)return;let active=true;checkForAvailableUpdate().then(update=>{if(active&&update)setAvailableUpdate(update)}).catch(()=>undefined);return()=>{active=false}},[authenticated]);
+  useEffect(()=>{if(authenticated&&localStorage.getItem("tutorial-completed")!=="1")setTutorialOpen(true)},[authenticated]);
   if(loading)return <main className="center">Avvio del gestionale…</main>;
   if(!authenticated)return <Login setup={setup} done={()=>{setSetup(false);setAuthenticated(true)}}/>;
   return <div className="shell"><aside><div className="brand">{settings?.logo_data_url?<img src={settings.logo_data_url} alt="Logo parrocchia"/>:<Church size={34}/>}<span>{settings?.parish_name??"Gestionale Messe"}</span></div>
     <nav><button className={page==="calendar"?"active":""} onClick={()=>setPage("calendar")}><CalendarDays/> Calendario</button>
     <button className={page==="archive"?"active":""} onClick={()=>setPage("archive")}><ArchiveIcon/> Archivio</button>
+    <button className={page==="tutorial"?"active":""} onClick={()=>setPage("tutorial")}><BookOpen/> Tutorial</button>
     <button className={page==="settings"?"active":""} onClick={()=>{setSettingsStart("parish");setPage("settings")}}><Cog/> Impostazioni</button></nav>
     <button className="logout" onClick={()=>setAuthenticated(false)}><LogOut/> Esci</button></aside>
-    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
+    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:page==="tutorial"?<TutorialPage/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
+    {tutorialOpen&&<TutorialOverlay close={()=>{localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}} openTutorial={()=>{setPage("tutorial");localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}}/>}
     {availableUpdate&&<UpdateDialog update={availableUpdate} close={()=>setAvailableUpdate(null)}/>}</div>;
 }
 
@@ -61,6 +64,28 @@ function UpdateDialog({update,close}:{update:Update;close:()=>void}){
     {message&&<div className="update-progress" role="status"><span>{message}</span>{progress!==undefined&&<progress max="100" value={progress}/>}</div>}
     {error&&<p className="error">{error}</p>}
     <div className="actions"><button disabled={installing} onClick={close}>Più tardi</button><button className="primary" disabled={installing} onClick={install}><Download/> {installing?"Installazione...":"Installa aggiornamento"}</button></div></div></div>;
+}
+
+const tutorialSteps=[
+  {title:"Calendario",body:"Scegli un giorno, controlla gli orari delle messe e aggiungi o modifica le intenzioni."},
+  {title:"Ricevute",body:"Ogni intenzione genera una ricevuta numerata. Dall'archivio puoi ristamparla o annullarla mantenendo lo storico."},
+  {title:"Archivio e storico",body:"Cerca per persona ricordata, offerente, data o numero ricevuta. Le eliminazioni finiscono nel cestino e possono essere ripristinate."},
+  {title:"Backup",body:"Il gestionale crea backup locali automatici. Se abiliti l'online, prepara sempre file cifrati prima dell'upload."},
+  {title:"Impostazioni",body:"Configura parrocchia, sacerdote, orari standard, colori, logo e formato della ricevuta termica."},
+];
+
+function TutorialOverlay({close,openTutorial}:{close:()=>void;openTutorial:()=>void}){
+  const [step,setStep]=useState(0),current=tutorialSteps[step];
+  return <div className="modal-backdrop"><div className="dialog tutorial-dialog" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"><div className="tutorial-step-count">Passo {step+1} di {tutorialSteps.length}</div><h2 id="tutorial-title">{current.title}</h2><p>{current.body}</p>
+    <div className="tutorial-dots" aria-hidden="true">{tutorialSteps.map((_,index)=><span key={index} className={index===step?"active":""}/>)}</div>
+    <div className="actions"><button onClick={close}>Salta tutorial</button><button className="secondary-button" onClick={openTutorial}><BookOpen/> Apri libreria tutorial</button>{step<tutorialSteps.length-1?<button className="primary" onClick={()=>setStep(step+1)}>Avanti</button>:<button className="primary" onClick={close}>Inizia a usare il gestionale</button>}</div></div></div>;
+}
+
+function TutorialPage(){
+  return <section><header><div><p className="eyebrow">Guida rapida</p><h1>Tutorial</h1><p className="page-subtitle">Una piccola libreria sempre disponibile per ripassare le funzioni principali.</p></div></header>
+    <div className="tutorial-library">{tutorialSteps.map((step,index)=><article key={step.title}><span>{index+1}</span><div><h2>{step.title}</h2><p>{step.body}</p></div></article>)}</div>
+    <div className="card tutorial-note"><h2>Consiglio operativo</h2><p>Prima di usare il gestionale in parrocchia configura orari standard, dati della parrocchia e fai un backup manuale di prova.</p></div>
+  </section>;
 }
 
 export function AppFooter({versionLoader=getVersion}:{versionLoader?:()=>Promise<string>}){
@@ -331,9 +356,19 @@ function AppearanceSettings({form,field,saved,message}:{form:ParishSettings;fiel
 }
 
 function BackupSettings(){
-  const [message,setMessage]=useState(""),[restore,setRestore]=useState(false);
-  return <div><h2>Backup e ripristino</h2><p>I backup vengono salvati nella cartella Documenti. L’app ne crea automaticamente uno al giorno.</p>
-    {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>
+  const [message,setMessage]=useState(""),[restore,setRestore]=useState(false),[backupSettings,setBackupSettings]=useState<ParishSettings|null>(null),[encryptPassphrase,setEncryptPassphrase]=useState("");
+  useEffect(()=>{loadSettings().then(setBackupSettings)},[]);
+  async function saveBackupPreferences(){
+    if(!backupSettings)return;
+    await saveSettings(backupSettings);
+    setMessage("Preferenze backup salvate.");
+  }
+  return <div><h2>Backup e ripristino</h2><p>I backup locali vengono salvati automaticamente nella cartella Documenti, divisi per giornata e orario.</p>
+    {backupSettings&&<div className="backup-grid"><section className="backup-card"><h3>Backup locale automatico</h3><p>Consigliato: ogni 6 ore. Il gestionale crea cartelle come <code>Backup/2026-07-09/18-00</code>.</p><label>Frequenza<select value={backupSettings.backup_frequency_hours??6} onChange={e=>setBackupSettings({...backupSettings,backup_frequency_hours:Number(e.target.value) as 6|12|24})}><option value={6}>Ogni 6 ore</option><option value={12}>Ogni 12 ore</option><option value={24}>Ogni 24 ore</option></select></label></section>
+      <section className="backup-card"><h3>Backup online</h3><p>Disattivato di default. Google Drive richiederà autorizzazione OAuth sul browser e userà backup cifrati prima dell'upload.</p><label className="check-field"><input type="checkbox" checked={(backupSettings.online_backup_enabled??0)===1} onChange={e=>setBackupSettings({...backupSettings,online_backup_enabled:e.target.checked?1:0})}/> Voglio preparare il backup online</label><label>Email Google Drive<input type="email" value={backupSettings.online_backup_account_email??""} onChange={e=>setBackupSettings({...backupSettings,online_backup_account_email:e.target.value})} placeholder="nome@gmail.com"/></label><label className="check-field"><input type="checkbox" checked={(backupSettings.online_backup_encryption_enabled??1)!==0} onChange={e=>setBackupSettings({...backupSettings,online_backup_encryption_enabled:e.target.checked?1:0})}/> Cifra sempre i file prima dell'upload</label><button className="secondary-button" disabled><Cloud/> Collega Google Drive</button><small>Connessione Google Drive in preparazione: serve configurare OAuth Client ID e consenso Google Cloud.</small></section></div>}
+    {backupSettings&&<div className="settings-actions"><button className="primary" onClick={saveBackupPreferences}><Save/> Salva preferenze backup</button></div>}
+    <div className="backup-encryption"><h3>Backup cifrato manuale</h3><p>Usalo per creare un file `.gimbackup` sicuro da copiare su cloud o chiavetta. La password non viene salvata.</p><label>Password di cifratura<input type="password" value={encryptPassphrase} onChange={e=>setEncryptPassphrase(e.target.value)} placeholder="Almeno 12 caratteri"/></label></div>
+    {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={async()=>{try{setMessage(`Backup cifrato creato in: ${await createBackup({encryptPassphrase})}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}><Shield/> Crea backup cifrato</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>
     <UpdateSettings/>
     {restore&&<ConfirmDialog title="Ripristinare l’ultimo backup?" body="Prima del ripristino verrà conservata una copia del database attuale. L’app si riavvierà automaticamente." confirmLabel="Ripristina backup" close={()=>setRestore(false)} confirmed={async()=>{await invoke("restore_latest_backup")}}/>}</div>;
 }

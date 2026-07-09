@@ -2,6 +2,24 @@
 
 Applicazione desktop Windows locale per gestire calendario delle messe, intenzioni, ricevute, archivio e backup.
 
+> Software proprietario di Dimensione 4 di Dario Marco Bellini. Il codice può essere consultato a scopo dimostrativo, ma l'uso, la copia, la modifica o la redistribuzione richiedono autorizzazione scritta. Vedi [LICENSE](LICENSE).
+
+## Funzionalità principali
+
+- calendario mensile e vista elenco delle intenzioni;
+- dettaglio giornata con fasce orarie, modifica ed eliminazione ripristinabile;
+- ricevute numerate con anteprima e stampa termica `58mm`/`80mm`;
+- archivio storico, cestino e log modifiche;
+- impostazioni parrocchia, sacerdote, colori, logo e orari standard;
+- backup locali automatici, backup cifrati e predisposizione per backup online;
+- updater Tauri firmato con release GitHub.
+
+## Sicurezza e dati personali
+
+Il gestionale salva i dati operativi sul computer dell'utente. Il repository non deve contenere database reali, backup, chiavi private, token o dati personali di parrocchie/offerenti. Prima di rendere pubblico il repository controlla sempre [SECURITY.md](SECURITY.md) e `.gitignore`.
+
+I backup online devono essere cifrati prima dell'upload. Il collegamento Google Drive è disattivato di default e richiederà autorizzazione OAuth dell'utente.
+
 ## Installazione per l'utente
 
 1. Copia su chiavetta uno dei file generati nella cartella `src-tauri/target/release/bundle/`:
@@ -12,6 +30,25 @@ Applicazione desktop Windows locale per gestire calendario delle messe, intenzio
 4. Entra in **Impostazioni** e compila i dati della parrocchia, gli orari standard delle messe e il formato ricevuta `58mm` o `80mm`.
 
 I dati, la password e lo storico restano sul computer locale. Per sicurezza usa **Impostazioni -> Backup e ripristino -> Crea backup ora**, soprattutto prima di spostare il programma su un altro PC.
+
+## Backup
+
+Il gestionale crea backup locali automatici nella cartella Documenti, organizzati per giornata e orario:
+
+```text
+Documenti/
+  Gestionale Intenzioni Messe/
+    Backup/
+      2026-07-09/
+        00-00/
+        06-00/
+        12-00/
+        18-00/
+```
+
+La frequenza predefinita è ogni 6 ore e può essere modificata in **Impostazioni -> Backup e ripristino**.
+
+Per copiare un backup su cloud o chiavetta usa **Crea backup cifrato**: genera un file `.gimbackup` protetto da password. La password non viene salvata dal gestionale.
 
 ## Come condividerlo al prete
 

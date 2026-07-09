@@ -1,7 +1,13 @@
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Nonce,
+};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use rand_core::RngCore;
+use sha2::Sha256;
 use tauri::Manager;
 const SERVICE: &str = "it.parrocchia.gestionale-intenzioni";
 const USER: &str = "admin-password-hash";
@@ -68,18 +74,63 @@ fn delete_account(current_password: String) -> Result<bool, String> {
 }
 #[tauri::command]
 fn new_backup_path(app: tauri::AppHandle) -> Result<String, String> {
+    let now = chrono::Local::now();
     let folder = app
         .path()
         .document_dir()
         .map_err(|e| e.to_string())?
         .join("Gestionale Intenzioni Messe")
-        .join("Backup");
+        .join("Backup")
+        .join(now.format("%Y-%m-%d").to_string())
+        .join(now.format("%H-%M").to_string());
     std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
     let name = format!(
         "gestionale-intenzioni-backup-{}.sqlite",
-        chrono::Local::now().format("%Y-%m-%d-%H-%M-%S")
+        now.format("%Y-%m-%d-%H-%M-%S")
     );
     Ok(folder.join(name).display().to_string())
+}
+
+#[tauri::command]
+fn encrypt_backup_file(source_path: String, passphrase: String) -> Result<String, String> {
+    if passphrase.len() < 12 {
+        return Err("La password di cifratura deve avere almeno 12 caratteri.".into());
+    }
+    let source = std::path::PathBuf::from(&source_path);
+    let plain = std::fs::read(&source).map_err(|e| e.to_string())?;
+    let mut salt = [0u8; 16];
+    let mut nonce_bytes = [0u8; 12];
+    OsRng.fill_bytes(&mut salt);
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let mut key = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), &salt, 210_000, &mut key);
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = cipher
+        .encrypt(nonce, plain.as_ref())
+        .map_err(|e| e.to_string())?;
+    let target = source.with_extension("gimbackup");
+    let mut output = Vec::with_capacity(10 + salt.len() + nonce_bytes.len() + ciphertext.len());
+    output.extend_from_slice(b"GIMBKP1");
+    output.extend_from_slice(&salt);
+    output.extend_from_slice(&nonce_bytes);
+    output.extend_from_slice(&ciphertext);
+    std::fs::write(&target, output).map_err(|e| e.to_string())?;
+    Ok(target.display().to_string())
+}
+
+fn collect_sqlite_files(folder: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_sqlite_files(&path, files);
+        } else if path.extension().and_then(|x| x.to_str()) == Some("sqlite") {
+            files.push(path);
+        }
+    }
 }
 #[tauri::command]
 fn export_archive_csv(app: tauri::AppHandle, content: String) -> Result<String, String> {
@@ -113,12 +164,11 @@ fn restore_latest_backup(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .join("Gestionale Intenzioni Messe")
         .join("Backup");
-    let mut files = std::fs::read_dir(&folder)
-        .map_err(|_| "Nessun backup disponibile.".to_string())?
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("sqlite"))
-        .collect::<Vec<_>>();
+    if !folder.exists() {
+        return Err("Nessun backup disponibile.".to_string());
+    }
+    let mut files = Vec::new();
+    collect_sqlite_files(&folder, &mut files);
     files.sort();
     let latest = files.last().ok_or("Nessun backup disponibile.")?.clone();
     std::fs::copy(latest, pending).map_err(|e| e.to_string())?;
@@ -189,6 +239,12 @@ pub fn run() {
                             sql: include_str!("../migrations/006_receipt_configuration.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 7,
+                            description: "backup settings",
+                            sql: include_str!("../migrations/007_backup_settings.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -200,6 +256,7 @@ pub fn run() {
             change_password,
             delete_account,
             new_backup_path,
+            encrypt_backup_file,
             export_archive_csv,
             restore_latest_backup
         ])
