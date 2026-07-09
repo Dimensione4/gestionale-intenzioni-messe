@@ -1,1 +1,3 @@
-fn main(){gestionale_intenzioni_messe_lib::run()}
+fn main() {
+    gestionale_intenzioni_messe_lib::run()
+}

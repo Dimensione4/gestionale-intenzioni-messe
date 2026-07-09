@@ -48,6 +48,18 @@ Se la stampante offre opzioni come "Adatta alla pagina" o "A4", disattivale e us
 
 ## Aggiornamenti automatici
 
+Stato attuale: il plugin updater è configurato con la chiave pubblica Tauri, la UI controlla gli aggiornamenti all'avvio e da **Impostazioni -> Backup e ripristino**, e la pipeline GitHub Actions è presente in `.github/workflows/release.yml`.
+
+Nota importante: non viene usato `dimensione4.it` come hosting degli aggiornamenti. La configurazione punta ai GitHub Releases:
+
+```json
+"endpoints": [
+  "https://github.com/Dimensione4/gestionale-intenzioni-messe/releases/latest/download/latest.json"
+]
+```
+
+Se il repository resta privato, un PC esterno potrebbe non riuscire a scaricare automaticamente `latest.json` e gli installer senza autenticazione GitHub. In quel caso le alternative pulite sono: installazione manuale via chiavetta, repository pubblico separato solo per gli artifact firmati, oppure un canale privato dedicato agli aggiornamenti. Non usare il sito ufficiale come deposito tecnico se non lo vuoi espressamente.
+
 La funzionalità è fattibile con il plugin updater di Tauri, ma richiede una piccola infrastruttura di rilascio sicura. La documentazione ufficiale è qui:
 
 - https://v2.tauri.app/plugin/updater/
@@ -217,7 +229,7 @@ Flusso UI consigliato:
 
 ### Stato attuale
 
-Al momento il gestionale è pronto per installazione manuale tramite `.exe` o `.msi`. L'updater automatico è documentato ma non ancora attivato, perché prima vanno create e custodite le chiavi di firma.
+Il gestionale resta installabile manualmente tramite `.exe` o `.msi`. L'updater automatico è configurato, ma per funzionare in produzione richiede che GitHub Actions abbia i secret di firma e che `latest.json` sia raggiungibile dal PC su cui è installato il gestionale.
 
 ## Sviluppo
 

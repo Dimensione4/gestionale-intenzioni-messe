@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
-import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, CheckCircle2, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { cancelReceipt, createBackup, createIntention, deleteIntention, loadArchive, loadAuditLogs, loadIntentions, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention } from "./lib/db";
@@ -13,10 +15,12 @@ export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
   const [page,setPage]=useState<"calendar"|"archive"|"settings">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
   const [settingsStart,setSettingsStart]=useState<"parish"|"receipt">("parish");
+  const [availableUpdate,setAvailableUpdate]=useState<Update|null>(null);
   useEffect(()=>{invoke<boolean>("has_password").then(v=>setSetup(!v)).finally(()=>setLoading(false))},[]);
   useEffect(()=>{if(authenticated)loadSettings().then(setSettings)},[authenticated]);
   useEffect(()=>{if(!settings)return;document.documentElement.style.setProperty("--primary",settings.primary_color);document.documentElement.style.setProperty("--primary-deep",settings.primary_color);document.documentElement.style.setProperty("--accent",settings.accent_color)},[settings]);
   useEffect(()=>{if(!authenticated)return;const today=format(new Date(),"yyyy-MM-dd");if(localStorage.getItem("last-auto-backup")===today)return;createBackup().then(()=>localStorage.setItem("last-auto-backup",today)).catch(()=>undefined)},[authenticated]);
+  useEffect(()=>{if(!authenticated)return;let active=true;checkForAvailableUpdate().then(update=>{if(active&&update)setAvailableUpdate(update)}).catch(()=>undefined);return()=>{active=false}},[authenticated]);
   if(loading)return <main className="center">Avvio del gestionale…</main>;
   if(!authenticated)return <Login setup={setup} done={()=>{setSetup(false);setAuthenticated(true)}}/>;
   return <div className="shell"><aside><div className="brand">{settings?.logo_data_url?<img src={settings.logo_data_url} alt="Logo parrocchia"/>:<Church size={34}/>}<span>{settings?.parish_name??"Gestionale Messe"}</span></div>
@@ -24,7 +28,39 @@ export function App() {
     <button className={page==="archive"?"active":""} onClick={()=>setPage("archive")}><ArchiveIcon/> Archivio</button>
     <button className={page==="settings"?"active":""} onClick={()=>{setSettingsStart("parish");setPage("settings")}}><Cog/> Impostazioni</button></nav>
     <button className="logout" onClick={()=>setAuthenticated(false)}><LogOut/> Esci</button></aside>
-    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main></div>;
+    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
+    {availableUpdate&&<UpdateDialog update={availableUpdate} close={()=>setAvailableUpdate(null)}/>}</div>;
+}
+
+async function checkForAvailableUpdate(){
+  return check({timeout:10000});
+}
+
+function updateBody(update:Update){
+  return update.body?.trim()||"Nuova versione pronta per l'installazione.";
+}
+
+function UpdateDialog({update,close}:{update:Update;close:()=>void}){
+  const [installing,setInstalling]=useState(false),[message,setMessage]=useState(""),[downloaded,setDownloaded]=useState(0),[total,setTotal]=useState(0),[error,setError]=useState("");
+  const progress=total>0?Math.min(100,Math.round(downloaded*100/total)):undefined;
+  async function install(){
+    setInstalling(true);setError("");setMessage("Preparazione aggiornamento...");
+    let received=0;
+    try{
+      await update.downloadAndInstall(event=>{
+        if(event.event==="Started"){received=0;setTotal(event.data.contentLength??0);setDownloaded(0);setMessage("Download dell'aggiornamento in corso...");return;}
+        if(event.event==="Progress"){received+=event.data.chunkLength;setDownloaded(received);setMessage("Download dell'aggiornamento in corso...");return;}
+        setMessage("Aggiornamento scaricato. Riavvio del gestionale...");
+      });
+      await relaunch();
+    }catch(e){setError(String(e));setInstalling(false);}
+  }
+  return <div className="modal-backdrop"><div className="dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title"><div className="update-hero"><RefreshCw/><div><p className="eyebrow">Aggiornamento disponibile</p><h2 id="update-title">Versione {update.version}</h2></div></div>
+    <p>Stai usando la versione {update.currentVersion}. Puoi installare ora l'aggiornamento; il gestionale si riaprirà automaticamente.</p>
+    <div className="update-notes"><strong>Novità</strong><p>{updateBody(update)}</p></div>
+    {message&&<div className="update-progress" role="status"><span>{message}</span>{progress!==undefined&&<progress max="100" value={progress}/>}</div>}
+    {error&&<p className="error">{error}</p>}
+    <div className="actions"><button disabled={installing} onClick={close}>Più tardi</button><button className="primary" disabled={installing} onClick={install}><Download/> {installing?"Installazione...":"Installa aggiornamento"}</button></div></div></div>;
 }
 
 export function AppFooter({versionLoader=getVersion}:{versionLoader?:()=>Promise<string>}){
@@ -298,7 +334,25 @@ function BackupSettings(){
   const [message,setMessage]=useState(""),[restore,setRestore]=useState(false);
   return <div><h2>Backup e ripristino</h2><p>I backup vengono salvati nella cartella Documenti. L’app ne crea automaticamente uno al giorno.</p>
     {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>
+    <UpdateSettings/>
     {restore&&<ConfirmDialog title="Ripristinare l’ultimo backup?" body="Prima del ripristino verrà conservata una copia del database attuale. L’app si riavvierà automaticamente." confirmLabel="Ripristina backup" close={()=>setRestore(false)} confirmed={async()=>{await invoke("restore_latest_backup")}}/>}</div>;
+}
+
+function UpdateSettings(){
+  const [update,setUpdate]=useState<Update|null>(null),[dialogOpen,setDialogOpen]=useState(false),[checking,setChecking]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
+  async function manualCheck(){
+    setChecking(true);setError("");setMessage("");setUpdate(null);setDialogOpen(false);
+    try{const found=await checkForAvailableUpdate();if(found){setUpdate(found);setMessage(`Disponibile la versione ${found.version}.`)}else setMessage("Il gestionale è già aggiornato.");}
+    catch(e){setError(`Controllo aggiornamenti non riuscito: ${String(e)}`)}
+    finally{setChecking(false)}
+  }
+  return <section className="update-settings"><div><h3>Aggiornamenti del gestionale</h3><p>Controlla se è disponibile una nuova versione firmata pubblicata tra le release GitHub.</p></div>
+    <div className="settings-actions"><button className="secondary-button" disabled={checking} onClick={manualCheck}><RefreshCw/> {checking?"Controllo...":"Controlla aggiornamenti"}</button></div>
+    {message&&<p className={update?"success":"update-ok"}>{update?<Download/>:<CheckCircle2/>}{message}</p>}
+    {error&&<p className="error">{error}</p>}
+    {update&&<div className="update-card"><strong>Versione {update.version}</strong><p>{updateBody(update)}</p><button className="primary" onClick={()=>setDialogOpen(true)}><Download/> Installa aggiornamento</button></div>}
+    {update&&dialogOpen&&<UpdateDialog update={update} close={()=>setDialogOpen(false)}/>}
+  </section>;
 }
 
 function PasswordSettings(){

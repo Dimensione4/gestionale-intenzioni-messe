@@ -1,7 +1,47 @@
 {
- "$schema":"https://schema.tauri.app/config/2","productName":"Gestionale Intenzioni Messe","version":"0.1.0","identifier":"it.parrocchia.gestionale-intenzioni",
- "build":{"beforeDevCommand":"npm run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"npm run build","frontendDist":"../dist"},
- "app":{"windows":[{"title":"Gestionale Intenzioni Messe","width":1280,"height":820,"minWidth":1000,"minHeight":700}],"security":{"csp":null}},
- "bundle":{"active":true,"targets":["msi","nsis"],"icon":["icons/icon.ico","icons/icon.png"],"shortDescription":"Gestionale locale per le intenzioni delle messe"},
- "plugins":{"sql":{"preload":["sqlite:gestionale.sqlite"]}}
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Gestionale Intenzioni Messe",
+  "version": "0.1.0",
+  "identifier": "it.parrocchia.gestionale-intenzioni",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Gestionale Intenzioni Messe",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1000,
+        "minHeight": 700
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "shortDescription": "Gestionale locale per le intenzioni delle messe",
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "sql": {
+      "preload": ["sqlite:gestionale.sqlite"]
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg3RTFCNTM4RUEwMzJGMEQKUldRTkx3UHFPTFhoaC9uV0Q0dUdJYk1TemNpOWI4QjJaSXJ6NVdjQXdnUlY1Qk10Q1pzajBmQ0UK",
+      "endpoints": [
+        "https://github.com/Dimensione4/gestionale-intenzioni-messe/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
 }
