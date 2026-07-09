@@ -51,6 +51,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 4px s
 .shell aside nav button:hover, .shell aside nav button.active { background: #ffffff1c; }
 .logout { margin-top: auto; }
 .shell > main { min-width: 0; padding: 42px clamp(28px, 4vw, 64px); }
+.app-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-top: 42px; padding-top: 22px; color: #47525d; border-top: 1px solid var(--border); font-size: 15px; }
+.app-footer div { display: grid; gap: 2px; }
+.app-footer strong { color: #17324e; font-size: 16px; }
+.app-footer span { color: #59636e; }
+.app-footer nav { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.app-footer a { color: var(--primary); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.app-footer a:hover { color: var(--primary-deep); }
 section > header { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 28px; }
 .header-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .eyebrow { margin: 0; color: #756530; font-weight: 800; font-size: 14px; }

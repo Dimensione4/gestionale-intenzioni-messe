@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
@@ -23,7 +24,20 @@ export function App() {
     <button className={page==="archive"?"active":""} onClick={()=>setPage("archive")}><ArchiveIcon/> Archivio</button>
     <button className={page==="settings"?"active":""} onClick={()=>{setSettingsStart("parish");setPage("settings")}}><Cog/> Impostazioni</button></nav>
     <button className="logout" onClick={()=>setAuthenticated(false)}><LogOut/> Esci</button></aside>
-    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}</main></div>;
+    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main></div>;
+}
+
+export function AppFooter({versionLoader=getVersion}:{versionLoader?:()=>Promise<string>}){
+  const [version,setVersion]=useState("0.1.0"),year=new Date().getFullYear();
+  useEffect(()=>{let active=true;versionLoader().then(value=>{if(active)setVersion(value)}).catch(()=>undefined);return()=>{active=false}},[versionLoader]);
+  return <footer className="app-footer no-print">
+    <div><strong>© {year} Dimensione 4 di Dario Marco Bellini</strong><span>Software sviluppato da Dario Marco Bellini · v{version}</span></div>
+    <nav aria-label="Contatti sviluppatore">
+      <a href="mailto:dario.bellini@dimensione4.it">dario.bellini@dimensione4.it</a>
+      <a href="https://wa.me/393334404903" target="_blank" rel="noreferrer">WhatsApp +39 333 4404903</a>
+      <a href="https://www.dimensione4.it" target="_blank" rel="noreferrer">www.dimensione4.it</a>
+    </nav>
+  </footer>;
 }
 
 function Login({setup,done}:{setup:boolean;done:()=>void}) {

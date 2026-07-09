@@ -46,6 +46,28 @@ Per la stampante termica usa **Archivio -> Anteprima e stampa**. Il gestionale i
 
 Se la stampante offre opzioni come "Adatta alla pagina" o "A4", disattivale e usa il formato termico configurato. Le email lunghe vengono spezzate automaticamente per non uscire dai riquadri della ricevuta.
 
+## Aggiornamenti automatici
+
+La funzionalità è fattibile con il plugin updater di Tauri, ma richiede una piccola infrastruttura di rilascio sicura.
+
+Flusso previsto:
+
+1. Si aumenta la versione in `src-tauri/tauri.conf.json`.
+2. Si pubblica una nuova release GitHub con installer e file di aggiornamento firmati.
+3. Il gestionale controlla online se esiste una versione più recente.
+4. Se disponibile, mostra un avviso con versione e note di aggiornamento.
+5. L'utente conferma, il gestionale scarica l'aggiornamento, verifica la firma e installa la nuova versione.
+
+Per completarla servono:
+
+- plugin Tauri updater installato lato Rust e frontend;
+- chiave privata di firma custodita nei secret GitHub;
+- chiave pubblica configurata nel programma;
+- pipeline GitHub Actions che crea release, installer e firme;
+- endpoint `latest.json` o GitHub Release interrogabile dal gestionale.
+
+Nota: se il PC della parrocchia non ha internet, resterà sempre valida l'installazione manuale tramite chiavetta.
+
 ## Sviluppo
 
 Servono Node.js, Rust stable e i prerequisiti Tauri per Windows: Microsoft C++ Build Tools e WebView2.
