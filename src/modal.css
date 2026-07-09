@@ -23,8 +23,9 @@ textarea { font: inherit; padding: 10px 14px; border: 2px solid #b8bec5; border-
 .receipt.\38 0mm { width: 80mm; }
 .receipt h2 { font-family: Arial, sans-serif; font-size: 19px; }
 .section-rule { margin: 32px 0; border: 0; border-top: 1px solid #d8d4cb; }
-.confirm-dialog { width: min(560px, 95vw); }
+.confirm-dialog { width: min(700px, 95vw); }
 .confirm-dialog blockquote { margin: 18px 0; padding: 14px; color: #34404c; background: #eef1f4; border-radius: 8px; }
+.confirm-dialog .actions { margin-top: 26px; }
 @media print {
   body * { visibility: hidden; }
   .receipt, .receipt *, .print-report, .print-report * { visibility: visible; }

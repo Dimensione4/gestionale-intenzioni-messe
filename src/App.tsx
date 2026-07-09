@@ -6,6 +6,7 @@ import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "dat
 import { it } from "date-fns/locale";
 import { cancelReceipt, createBackup, createIntention, deleteIntention, loadArchive, loadAuditLogs, loadIntentions, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention } from "./lib/db";
 import type { AuditLog, MassIntention, MassScheduleRule, NewIntention, ParishSettings } from "./lib/db";
+import { getCelebrationOfDay } from "./lib/saints";
 
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
@@ -90,7 +91,9 @@ function DayDetail({date,items,schedules,settingsRepository,back,add,edit,change
   useEffect(()=>{settingsRepository().then(s=>setMaximum(s.max_intentions_per_mass))},[settingsRepository]);
   const day=new Date(`${date}T12:00:00`),configured=schedules.filter(s=>s.weekday===day.getDay()).map(s=>s.time);
   const times=Array.from(new Set([...configured,...items.map(i=>i.mass_time)])).sort();
+  const celebration=getCelebrationOfDay(date);
   return <section className="day-detail"><header><div><button className="back-button" onClick={back}><ArrowLeft/> Torna al calendario</button><h1>{format(day,"EEEE d MMMM yyyy",{locale:it})}</h1><p className="page-subtitle">{items.length} {items.length===1?"intenzione registrata":"intenzioni registrate"}</p></div><button className="primary" onClick={()=>add(configured[0]??"18:00")}>+ Aggiungi intenzione</button></header>
+    {celebration&&<div className="saint-banner"><Church/><div><span>Memoria liturgica del giorno</span><strong>{celebration}</strong></div></div>}
     <div className="schedule-list">{times.length===0?<div className="empty-state"><h2>Nessuna messa configurata</h2><p>Puoi aggiungere comunque un’intenzione oppure configurare gli orari standard nelle Impostazioni.</p></div>:times.map(time=>{const slotItems=items.filter(i=>i.mass_time===time);return <section className="time-slot" key={time}>
       <div className="time-slot-head"><div><strong>{time}</strong><span>{slotItems.length} / {maximum} intenzioni</span></div><button className="secondary-button" disabled={slotItems.length>=maximum} onClick={()=>add(time)}>+ Aggiungi intenzione</button></div>
       {slotItems.length===0?<p className="slot-empty">Nessuna intenzione per questa messa.</p>:<div className="intention-rows">{slotItems.map(item=><article key={item.id}>
@@ -129,28 +132,32 @@ function IntentionDialog({initialDate,initialTime,initialRecord,repository,close
   </div></div>;
 }
 
-type ArchiveRepository={list:typeof loadArchive;logs:typeof loadAuditLogs;cancel:typeof cancelReceipt;remove:typeof deleteIntention;restore:typeof restoreIntention};
-const defaultArchiveRepository:ArchiveRepository={list:loadArchive,logs:loadAuditLogs,cancel:cancelReceipt,remove:deleteIntention,restore:restoreIntention};
+type ArchiveRepository={list:typeof loadArchive;logs:typeof loadAuditLogs;cancel:typeof cancelReceipt;remove:typeof deleteIntention;restore:typeof restoreIntention;exporter?:(content:string)=>Promise<string>};
+const defaultArchiveRepository:ArchiveRepository={list:loadArchive,logs:loadAuditLogs,cancel:cancelReceipt,remove:deleteIntention,restore:restoreIntention,exporter:(content)=>invoke<string>("export_archive_csv",{content})};
 
 export function Archive({settings,repository=defaultArchiveRepository}:{settings:ParishSettings|null;repository?:ArchiveRepository}){
-  const [items,setItems]=useState<MassIntention[]>([]),[logs,setLogs]=useState<AuditLog[]>([]),[view,setView]=useState<"records"|"history">("records"),[query,setQuery]=useState(""),[receipt,setReceipt]=useState<MassIntention|null>(null),[restoring,setRestoring]=useState<MassIntention|null>(null),[cancelling,setCancelling]=useState<MassIntention|null>(null),[deleting,setDeleting]=useState<MassIntention|null>(null),[error,setError]=useState("");
+  const [items,setItems]=useState<MassIntention[]>([]),[logs,setLogs]=useState<AuditLog[]>([]),[view,setView]=useState<"records"|"trash"|"history">("records"),[query,setQuery]=useState(""),[sort,setSort]=useState<"receipt"|"date-desc"|"date-asc"|"remembered">("receipt"),[from,setFrom]=useState(""),[to,setTo]=useState(""),[exportMessage,setExportMessage]=useState(""),[receipt,setReceipt]=useState<MassIntention|null>(null),[restoring,setRestoring]=useState<MassIntention|null>(null),[cancelling,setCancelling]=useState<MassIntention|null>(null),[deleting,setDeleting]=useState<MassIntention|null>(null),[error,setError]=useState("");
   const refresh=()=>repository.list().then(setItems).catch(e=>setError(String(e)));
   useEffect(()=>{refresh();repository.logs().then(setLogs)},[]);
   const normalized=query.toLowerCase().trim();
-  const visible=items.filter(i=>!normalized||[i.offerer_first_name,i.offerer_last_name,i.intention_text,i.remembered_person,String(i.receipt_number??"")].some(v=>v?.toLowerCase().includes(normalized)));
-  function exportCsv(){
-    const rows=[["Ricevuta","Data","Ora","Offerente","Intenzione","Offerta","Stato"],...visible.map(i=>[i.receipt_number??"",i.mass_date,i.mass_time,`${i.offerer_first_name} ${i.offerer_last_name}`.trim(),i.intention_text,(i.offering_cents/100).toFixed(2),i.receipt_status??"valid"])];
+  const visible=items.filter(i=>(view==="trash"?i.status==="deleted":i.status!=="deleted"))
+    .filter(i=>(!from||i.mass_date>=from)&&(!to||i.mass_date<=to))
+    .filter(i=>!normalized||[i.offerer_first_name,i.offerer_last_name,i.intention_text,i.remembered_person,String(i.receipt_number??"")].some(v=>v?.toLowerCase().includes(normalized)))
+    .sort((a,b)=>sort==="receipt"?(a.receipt_number??Number.MAX_SAFE_INTEGER)-(b.receipt_number??Number.MAX_SAFE_INTEGER):sort==="date-desc"?(b.mass_date+b.mass_time).localeCompare(a.mass_date+a.mass_time):sort==="date-asc"?(a.mass_date+a.mass_time).localeCompare(b.mass_date+b.mass_time):(a.remembered_person||"zzz").localeCompare(b.remembered_person||"zzz","it"));
+  async function exportCsv(){
+    const rows=[["Ricevuta","Data","Ora","Offerente","Persona ricordata","Intenzione","Offerta","Stato"],...visible.map(i=>[i.receipt_number??"",i.mass_date,i.mass_time,`${i.offerer_first_name} ${i.offerer_last_name}`.trim(),i.remembered_person,i.intention_text,(i.offering_cents/100).toFixed(2),i.status==="deleted"?"eliminata":i.receipt_status??"valid"])];
     const csv=rows.map(row=>row.map(value=>`"${String(value).replaceAll('"','""')}"`).join(";")).join("\r\n");
-    const link=document.createElement("a");link.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));link.download=`intenzioni-${format(new Date(),"yyyy-MM-dd")}.csv`;link.click();URL.revokeObjectURL(link.href);
+    try{const path=await (repository.exporter??defaultArchiveRepository.exporter!)(csv);setExportMessage(`File creato per Excel: ${path}`)}catch(e){setExportMessage(`Errore durante l’esportazione: ${String(e)}`)}
   }
-  return <section><header><div><p className="eyebrow">Consultazione</p><h1>Archivio e storico</h1></div>{view==="records"&&<button className="primary" onClick={exportCsv}><Download/> Esporta CSV</button>}</header>
-    <div className="section-tabs"><button className={view==="records"?"active":""} onClick={()=>setView("records")}><ArchiveIcon/> Intenzioni</button><button className={view==="history"?"active":""} onClick={()=>setView("history")}><History/> Storico modifiche</button></div>
-    {view==="records"?<div className="card"><label>Cerca per nome, testo o numero ricevuta<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Inizia a scrivere…"/></label>
+  return <section><header><div><p className="eyebrow">Consultazione</p><h1>Archivio e storico</h1></div>{view!=="history"&&<button className="primary" onClick={exportCsv}><Download/> Esporta per Excel</button>}</header>
+    <div className="section-tabs"><button className={view==="records"?"active":""} onClick={()=>setView("records")}><ArchiveIcon/> Intenzioni</button><button className={view==="trash"?"active":""} onClick={()=>setView("trash")}><Trash2/> Cestino</button><button className={view==="history"?"active":""} onClick={()=>setView("history")}><History/> Storico modifiche</button></div>
+    {view!=="history"?<div className="card"><div className="archive-filters"><label className="archive-search">Cerca<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Nome, persona ricordata, testo o ricevuta"/></label><label>Ordina per<select value={sort} onChange={e=>setSort(e.target.value as typeof sort)}><option value="receipt">Numero ricevuta crescente</option><option value="date-desc">Data più recente</option><option value="date-asc">Data meno recente</option><option value="remembered">Persona ricordata A-Z</option></select></label><label>Dal giorno<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>Al giorno<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div>
+    {exportMessage&&<p className={exportMessage.startsWith("Errore")?"error":"success"} role="status">{exportMessage}</p>}
     {error&&<p className="error">{error}</p>}<div className="archive-list">{visible.length===0?<p>Nessun risultato.</p>:visible.map(item=><article key={item.id} className={item.status==="deleted"?"record-deleted":""}>
-      <div><strong>{item.mass_date} · ore {item.mass_time}</strong><p>{item.intention_text}</p><small>{`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||"Offerente non indicato"} · € {(item.offering_cents/100).toFixed(2)}</small></div>
+      <div><strong>{item.mass_date} · ore {item.mass_time}</strong>{item.remembered_person&&<span className="remembered-person">In memoria di {item.remembered_person}</span>}<p>{item.intention_text}</p><small>{`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||"Offerente non indicato"} · € {(item.offering_cents/100).toFixed(2)}</small></div>
       <div className="receipt-actions"><span className={item.status==="deleted"||item.receipt_status==="cancelled"?"cancelled":""}>{item.status==="deleted"?"Eliminata":item.receipt_number==null?"Senza ricevuta":"Ricevuta n. "+item.receipt_number+(item.receipt_status==="cancelled"?" · annullata":"")}</span>{item.status==="deleted"?<button className="restore-action" onClick={()=>setRestoring(item)}><RotateCcw/> Ripristina intenzione</button>:item.receipt_number==null?<button className="delete-action" onClick={()=>setDeleting(item)}><Trash2/> Elimina intenzione</button>:<><button className="preview-action" onClick={()=>setReceipt(item)}><Printer/> Anteprima e stampa</button>{item.receipt_status!=="cancelled"&&<button className="cancel-action" onClick={()=>setCancelling(item)}>Annulla ricevuta</button>}</>}</div>
     </article>)}</div></div>
-    :<div className="history-list">{logs.length===0?<p className="empty-state">Nessuna modifica registrata.</p>:logs.map(log=><article key={log.id}><span className={`history-action ${log.action}`}>{historyActionLabel(log.action)}</span><div><strong>{log.details||log.entity_type}</strong><small>{new Date(log.created_at.replace(" ","T")+"Z").toLocaleString("it-IT")}</small></div></article>)}</div>}
+    :<div className="history-list">{logs.length===0?<p className="empty-state">Nessuna modifica registrata.</p>:logs.map(log=><article key={log.id}><span className={`history-action ${log.action}`}>{historyActionLabel(log.action)}</span><div><AuditDetails log={log}/><small>{new Date(log.created_at.replace(" ","T")+"Z").toLocaleString("it-IT")}</small></div></article>)}</div>}
     {receipt&&<ReceiptPreview item={receipt} settings={settings} close={()=>setReceipt(null)}/>}
     {restoring&&<ConfirmDialog title="Ripristinare questa intenzione?" body="Tornerà attiva nella giornata e nella fascia oraria originali, se c’è ancora disponibilità." confirmLabel="Ripristina intenzione" close={()=>setRestoring(null)} confirmed={async()=>{await repository.restore(restoring.id);setRestoring(null);await refresh();setLogs(await repository.logs())}}/>}
     {cancelling&&<ReasonDialog title="Annullare questa ricevuta?" body={`La ricevuta n. ${cancelling.receipt_number} resterà nello storico come annullata.`} label="Motivo dell’annullamento" confirmLabel="Annulla ricevuta" close={()=>setCancelling(null)} confirmed={async reason=>{await repository.cancel(cancelling.id,reason);setCancelling(null);await refresh();setLogs(await repository.logs())}}/>}
@@ -159,6 +166,21 @@ export function Archive({settings,repository=defaultArchiveRepository}:{settings
 }
 
 function historyActionLabel(action:string){return ({create:"Creazione",update:"Modifica",delete:"Eliminazione",restore:"Ripristino",cancel:"Annullamento"} as Record<string,string>)[action]??action}
+
+function AuditDetails({log}:{log:AuditLog}){
+  if(log.action==="update"&&log.details){
+    try{
+      const details=JSON.parse(log.details) as {before?:Record<string,string|number>;after?:Record<string,string|number>};
+      if(details.before&&details.after){
+        const labels:Record<string,string>={data:"Data messa",ora:"Orario",offerente:"Offerente",intenzione:"Intenzione",persona:"Persona ricordata",offerta:"Offerta"};
+        const formatValue=(key:string,value:string|number)=>key==="offerta"?`€ ${(Number(value)/100).toFixed(2)}`:String(value||"—");
+        const changes=Object.keys(details.after).filter(key=>String(details.before?.[key]??"")!==String(details.after?.[key]??""));
+        return <><strong>Intenzione modificata</strong><div className="audit-changes">{changes.map(key=><div key={key}><span>{labels[key]??key}</span><del>{formatValue(key,details.before![key])}</del><b aria-hidden="true">→</b><ins>{formatValue(key,details.after![key])}</ins></div>)}</div></>;
+      }
+    }catch{/* I vecchi eventi restano leggibili nel formato precedente. */}
+  }
+  return <strong>{log.details||log.entity_type}</strong>;
+}
 
 function ConfirmDialog({title,body,confirmLabel,close,confirmed,danger=false}:{title:string;body:string;confirmLabel:string;close:()=>void;confirmed:()=>Promise<void>;danger?:boolean}){
   const [busy,setBusy]=useState(false),[error,setError]=useState("");

@@ -37,6 +37,16 @@ fn new_backup_path(app:tauri::AppHandle)->Result<String,String>{
  Ok(folder.join(name).display().to_string())
 }
 #[tauri::command]
+fn export_archive_csv(app:tauri::AppHandle,content:String)->Result<String,String>{
+ let folder=app.path().document_dir().map_err(|e|e.to_string())?.join("Gestionale Intenzioni Messe").join("Esportazioni");
+ std::fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
+ let name=format!("intenzioni-{}.csv",chrono::Local::now().format("%Y-%m-%d-%H-%M-%S"));
+ let target=folder.join(name);
+ let mut bytes=vec![0xEF,0xBB,0xBF];bytes.extend_from_slice(content.as_bytes());
+ std::fs::write(&target,bytes).map_err(|e|e.to_string())?;
+ Ok(target.display().to_string())
+}
+#[tauri::command]
 fn restore_latest_backup(app:tauri::AppHandle)->Result<(),String>{
  let pending=app.path().app_data_dir().map_err(|e|e.to_string())?.join("restore.pending.sqlite");
  let folder=app.path().document_dir().map_err(|e|e.to_string())?.join("Gestionale Intenzioni Messe").join("Backup");
@@ -64,7 +74,8 @@ pub fn run(){
   tauri_plugin_sql::Migration{version:1,description:"initial schema",sql:include_str!("../migrations/001_initial.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
   tauri_plugin_sql::Migration{version:2,description:"intention integrity",sql:include_str!("../migrations/002_intention_integrity.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
   tauri_plugin_sql::Migration{version:3,description:"history and personalization",sql:include_str!("../migrations/003_history_and_personalization.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
-  tauri_plugin_sql::Migration{version:4,description:"atomic history",sql:include_str!("../migrations/004_atomic_history.sql"),kind:tauri_plugin_sql::MigrationKind::Up}
- ]).build()).invoke_handler(tauri::generate_handler![has_password,set_initial_password,verify_password,change_password,delete_account,new_backup_path,restore_latest_backup])
+  tauri_plugin_sql::Migration{version:4,description:"atomic history",sql:include_str!("../migrations/004_atomic_history.sql"),kind:tauri_plugin_sql::MigrationKind::Up},
+  tauri_plugin_sql::Migration{version:5,description:"audit before after",sql:include_str!("../migrations/005_audit_before_after.sql"),kind:tauri_plugin_sql::MigrationKind::Up}
+ ]).build()).invoke_handler(tauri::generate_handler![has_password,set_initial_password,verify_password,change_password,delete_account,new_backup_path,export_archive_csv,restore_latest_backup])
  .run(tauri::generate_context!()).expect("errore durante l'avvio dell'applicazione");
 }
