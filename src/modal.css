@@ -23,7 +23,7 @@ textarea { font: inherit; padding: 10px 14px; border: 2px solid #b8bec5; border-
 .confirm-dialog blockquote { margin: 18px 0; padding: 14px; color: #34404c; background: #eef1f4; border-radius: 8px; }
 @media print {
   body * { visibility: hidden; }
-  .receipt, .receipt * { visibility: visible; }
-  .receipt { position: absolute; left: 0; top: 0; margin: 0; }
+  .receipt, .receipt *, .print-report, .print-report * { visibility: visible; }
+  .receipt, .print-report { display: block; position: absolute; left: 0; top: 0; margin: 0; width: 100%; }
   .no-print { display: none !important; }
 }

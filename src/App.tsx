@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, Church, Download, History, LogOut, Palette, Pencil, Printer, RotateCcw, Save, Settings as Cog, Shield, Trash2 } from "lucide-react";
+import { Archive as ArchiveIcon, ArrowLeft, CalendarDays, Church, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Printer, RotateCcw, Save, Settings as Cog, Shield, Trash2 } from "lucide-react";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { cancelReceipt, createBackup, createIntention, deleteIntention, loadArchive, loadAuditLogs, loadIntentions, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention } from "./lib/db";
@@ -42,7 +42,7 @@ type IntentionRepository={list:typeof loadIntentions;settings:typeof loadSetting
 const defaultRepository:IntentionRepository={list:loadIntentions,settings:loadSettings,create:createIntention,update:updateIntention,schedules:loadSchedules};
 
 export function Calendar({repository=defaultRepository}:{repository?:IntentionRepository}){
-  const [month,setMonth]=useState(new Date()),[selectedDay,setSelectedDay]=useState<string|null>(null),[addRequest,setAddRequest]=useState<{date:string;time?:string}|null>(null),[editing,setEditing]=useState<MassIntention|null>(null),[intentions,setIntentions]=useState<MassIntention[]>([]),[schedules,setSchedules]=useState<MassScheduleRule[]>([]),[notice,setNotice]=useState(""),[loadError,setLoadError]=useState("");
+  const [month,setMonth]=useState(new Date()),[view,setView]=useState<"calendar"|"list">("calendar"),[printOpen,setPrintOpen]=useState(false),[selectedDay,setSelectedDay]=useState<string|null>(null),[addRequest,setAddRequest]=useState<{date:string;time?:string}|null>(null),[editing,setEditing]=useState<MassIntention|null>(null),[intentions,setIntentions]=useState<MassIntention[]>([]),[schedules,setSchedules]=useState<MassScheduleRule[]>([]),[notice,setNotice]=useState(""),[loadError,setLoadError]=useState("");
   const days=useMemo(()=>eachDayOfInterval({start:startOfMonth(month),end:endOfMonth(month)}),[month]);
   const blanks=(getDay(startOfMonth(month))+6)%7;
   const refresh=()=>repository.list(format(startOfMonth(month),"yyyy-MM-dd"),format(endOfMonth(month),"yyyy-MM-dd")).then(items=>{setIntentions(items);setLoadError("")}).catch(e=>setLoadError(`Impossibile leggere il calendario: ${String(e)}`));
@@ -50,15 +50,39 @@ export function Calendar({repository=defaultRepository}:{repository?:IntentionRe
   useEffect(()=>{repository.schedules?.().then(setSchedules)},[repository]);
   if(selectedDay)return <DayDetail date={selectedDay} items={intentions.filter(i=>i.mass_date===selectedDay)} schedules={schedules} settingsRepository={repository.settings} back={()=>setSelectedDay(null)} add={time=>setAddRequest({date:selectedDay,time})} edit={setEditing} changed={refresh}
     dialogs={<>{addRequest&&<IntentionDialog initialDate={addRequest.date} initialTime={addRequest.time} repository={repository} close={()=>setAddRequest(null)} saved={record=>{setAddRequest(null);setNotice(`Intenzione salvata. Ricevuta n. ${record.receipt_number}.`);refresh()}}/>}{editing&&<IntentionDialog initialDate={editing.mass_date} initialRecord={editing} repository={repository} close={()=>setEditing(null)} saved={()=>{setEditing(null);setNotice("Intenzione modificata.");refresh()}}/>}</>}/>;
-  return <section><header><div><p className="eyebrow">Schermata principale</p><h1>Calendario messe</h1></div><button className="primary" onClick={()=>setAddRequest({date:format(new Date(),"yyyy-MM-dd")})}>+ Aggiungi intenzione</button></header>
+  return <section><header><div><p className="eyebrow">Schermata principale</p><h1>Agenda delle messe</h1></div><div className="header-actions"><button className="secondary-button" onClick={()=>setPrintOpen(true)}><Printer/> Stampa elenco</button><button className="primary" onClick={()=>setAddRequest({date:format(new Date(),"yyyy-MM-dd")})}>+ Aggiungi intenzione</button></div></header>
+    <div className="calendar-toolbar"><div className="view-switch" aria-label="Tipo di vista"><button className={view==="calendar"?"active":""} onClick={()=>setView("calendar")}><Grid3X3/> Calendario</button><button className={view==="list"?"active":""} onClick={()=>setView("list")}><List/> Elenco mensile</button></div></div>
     {loadError&&<p className="error" role="alert">{loadError}</p>}<div className="card"><div className="month"><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1))}>← Mese precedente</button>
     <h2>{format(month,"MMMM yyyy",{locale:it})}</h2><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1))}>Mese successivo →</button></div>
-    <div className="week">{["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(x=><strong key={x}>{x}</strong>)}</div><div className="grid">
+    {view==="calendar"?<><div className="week">{["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(x=><strong key={x}>{x}</strong>)}</div><div className="grid">
     {Array.from({length:blanks},(_,i)=><span key={i}/>)}{days.map(day=>{const key=format(day,"yyyy-MM-dd"),items=intentions.filter(i=>i.mass_date===key),times=schedules.filter(s=>s.weekday===day.getDay()).map(s=>s.time);return <button key={key} onClick={()=>setSelectedDay(key)} className={key===format(new Date(),"yyyy-MM-dd")?"today":""}>
-    <b>{format(day,"d")}</b><span className="day-lines">{items.slice(0,3).map(i=><small key={i.id}><strong>{i.mass_time}</strong> {i.intention_text}</small>)}{items.length===0&&times.slice(0,3).map(time=><small key={time}><strong>{time}</strong> 0 intenzioni</small>)}{items.length===0&&times.length===0&&<small>Nessuna messa</small>}{items.length>3&&<small>+ altre {items.length-3}</small>}</span></button>})}</div></div>
+    <b>{format(day,"d")}</b><span className="day-lines">{items.slice(0,3).map(i=><small key={i.id}><strong>{i.mass_time}</strong> {i.intention_text}</small>)}{items.length===0&&times.slice(0,3).map(time=><small key={time}><strong>{time}</strong> 0 intenzioni</small>)}{items.length===0&&times.length===0&&<small>Nessuna messa</small>}{items.length>3&&<small>+ altre {items.length-3}</small>}</span></button>})}</div></>:<MonthlyList days={days} intentions={intentions} schedules={schedules} openDay={setSelectedDay}/>}</div>
     {notice&&<p className="toast" role="status">{notice}</p>}
     {addRequest&&<IntentionDialog initialDate={addRequest.date} repository={repository} close={()=>setAddRequest(null)} saved={record=>{setAddRequest(null);setIntentions(items=>[...items,record].sort((a,b)=>(a.mass_date+a.mass_time).localeCompare(b.mass_date+b.mass_time)));setNotice(`Intenzione salvata. Ricevuta n. ${record.receipt_number}.`);}}/>}
+    {printOpen&&<PrintIntentionsDialog month={month} repository={repository} close={()=>setPrintOpen(false)}/>}
   </section>;
+}
+
+function MonthlyList({days,intentions,schedules,openDay}:{days:Date[];intentions:MassIntention[];schedules:MassScheduleRule[];openDay:(date:string)=>void}){
+  const rows=days.flatMap(day=>{const date=format(day,"yyyy-MM-dd"),items=intentions.filter(i=>i.mass_date===date);if(items.length)return items.map(item=>({date,day,time:item.mass_time,text:item.intention_text,count:items.length}));return schedules.filter(s=>s.weekday===day.getDay()).map(s=>({date,day,time:s.time,text:"Nessuna intenzione",count:0}))});
+  return <div className="monthly-list"><div className="monthly-list-head"><span>Giorno</span><span>Ora</span><span>Intenzione</span><span>Stato</span></div>{rows.length===0?<p className="empty-state">Nessuna messa o intenzione nel mese selezionato.</p>:rows.map((row,index)=><button key={`${row.date}-${row.time}-${index}`} onClick={()=>openDay(row.date)}><span><strong>{format(row.day,"d")}</strong> {format(row.day,"EEEE",{locale:it})}</span><span>{row.time}</span><span>{row.text}</span><span>{row.count>0?"Registrata":"Disponibile"}</span></button>)}</div>;
+}
+
+function PrintIntentionsDialog({month,repository,close}:{month:Date;repository:IntentionRepository;close:()=>void}){
+  const monthStart=format(startOfMonth(month),"yyyy-MM-dd"),monthEnd=format(endOfMonth(month),"yyyy-MM-dd");
+  const [period,setPeriod]=useState<"day"|"month"|"range">("month"),[from,setFrom]=useState(monthStart),[to,setTo]=useState(monthEnd),[offerings,setOfferings]=useState(false),[items,setItems]=useState<MassIntention[]>([]),[printing,setPrinting]=useState(false),[error,setError]=useState("");
+  const bounds=()=>period==="day"?[from,from]:period==="month"?[monthStart,monthEnd]:[from,to];
+  async function print(){setError("");const [start,end]=bounds();if(start>end)return setError("La data iniziale deve precedere quella finale.");setPrinting(true);try{setItems(await repository.list(start,end));setTimeout(()=>window.print(),50)}catch(e){setError(String(e))}finally{setPrinting(false)}}
+  return <div className="modal-backdrop"><div className="dialog print-dialog" role="dialog" aria-modal="true" aria-labelledby="print-title"><div className="dialog-head no-print"><div><p className="eyebrow">Stampa</p><h2 id="print-title">Stampa elenco intenzioni</h2></div><button onClick={close}>Chiudi ×</button></div>
+    <div className="print-options no-print"><fieldset><legend>Periodo da stampare</legend><label><input type="radio" checked={period==="day"} onChange={()=>setPeriod("day")}/> Un giorno</label><label><input type="radio" checked={period==="month"} onChange={()=>setPeriod("month")}/> Tutto il mese</label><label><input type="radio" checked={period==="range"} onChange={()=>setPeriod("range")}/> Intervallo personalizzato</label></fieldset>
+    {period!=="month"&&<div className="print-dates"><label>Dal giorno<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>{period==="range"&&<label>Al giorno<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>}</div>}
+    <label className="check-field"><input type="checkbox" checked={offerings} onChange={e=>setOfferings(e.target.checked)}/> Includi importi delle offerte</label>{error&&<p className="error">{error}</p>}</div>
+    <PrintIntentionsReport items={items} from={bounds()[0]} to={bounds()[1]} offerings={offerings}/>
+    <div className="actions no-print"><button onClick={close}>Annulla</button><button className="primary" disabled={printing} onClick={print}><Printer/> {printing?"Preparazione…":"Stampa elenco"}</button></div></div></div>;
+}
+
+function PrintIntentionsReport({items,from,to,offerings}:{items:MassIntention[];from:string;to:string;offerings:boolean}){
+  return <div className="print-report"><h1>Elenco intenzioni delle messe</h1><p>Periodo: {from===to?from:`dal ${from} al ${to}`}</p><table><thead><tr><th>Giorno</th><th>Ora</th><th>Intenzione</th>{offerings&&<th>Offerta</th>}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td>{item.mass_date}</td><td>{item.mass_time}</td><td>{item.intention_text}</td>{offerings&&<td>€ {(item.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table>{items.length===0&&<p>Nessuna intenzione nel periodo selezionato.</p>}</div>;
 }
 
 function DayDetail({date,items,schedules,settingsRepository,back,add,edit,changed,dialogs}:{date:string;items:MassIntention[];schedules:MassScheduleRule[];settingsRepository:typeof loadSettings;back:()=>void;add:(time:string)=>void;edit:(item:MassIntention)=>void;changed:()=>void;dialogs:ReactNode}){
