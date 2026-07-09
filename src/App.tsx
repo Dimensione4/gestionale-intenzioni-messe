@@ -33,7 +33,7 @@ export function AppFooter({versionLoader=getVersion}:{versionLoader?:()=>Promise
   return <footer className="app-footer no-print">
     <div><strong>© {year} Dimensione 4 di Dario Marco Bellini</strong><span>Software sviluppato da Dario Marco Bellini · v{version}</span></div>
     <nav aria-label="Contatti sviluppatore">
-      <a href="mailto:dario.bellini@dimensione4.it">dario.bellini@dimensione4.it</a>
+      <a href="mailto:dariomarcobellini@dimensione4.it">dariomarcobellini@dimensione4.it</a>
       <a href="https://wa.me/393334404903" target="_blank" rel="noreferrer">WhatsApp +39 333 4404903</a>
       <a href="https://www.dimensione4.it" target="_blank" rel="noreferrer">www.dimensione4.it</a>
     </nav>
@@ -211,12 +211,23 @@ export function receiptPageHeightMm(pixelHeight:number){
   return Math.max(80,Math.ceil(pixelHeight*25.4/96)+4);
 }
 
+export function receiptPrintTitle(item:MassIntention,settings:ParishSettings|null){
+  const receiptNumber=item.receipt_number??"senza-numero";
+  const offerer=`${item.offerer_first_name} ${item.offerer_last_name}`.trim()||item.remembered_person||"offerente";
+  const parish=settings?.parish_name||"parrocchia";
+  return `Ricevuta n ${receiptNumber} - ${offerer} - ${item.mass_date} - ${parish}`.replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
+}
+
 function ReceiptPreview({item,settings,close,configure}:{item:MassIntention;settings:ParishSettings|null;close:()=>void;configure?:()=>void}){
   const receiptRef=useRef<HTMLDivElement>(null),paperWidth=settings?.receipt_paper_size==="80mm"?80:58;
   const [pageHeight,setPageHeight]=useState(120);
   function printReceipt(){
+    const previousTitle=document.title;
+    document.title=receiptPrintTitle(item,settings);
+    const restoreTitle=()=>{document.title=previousTitle;window.removeEventListener("afterprint",restoreTitle)};
+    window.addEventListener("afterprint",restoreTitle);
     setPageHeight(receiptPageHeightMm(receiptRef.current?.scrollHeight??0));
-    requestAnimationFrame(()=>window.print());
+    requestAnimationFrame(()=>{window.print();setTimeout(restoreTitle,1000)});
   }
   return <div className="modal-backdrop"><div className="dialog receipt-dialog" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
     <style data-receipt-page-size>{`@media print { @page { size: ${paperWidth}mm ${pageHeight}mm; margin: 0; } }`}</style>

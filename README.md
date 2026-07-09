@@ -48,25 +48,175 @@ Se la stampante offre opzioni come "Adatta alla pagina" o "A4", disattivale e us
 
 ## Aggiornamenti automatici
 
-La funzionalità è fattibile con il plugin updater di Tauri, ma richiede una piccola infrastruttura di rilascio sicura.
+La funzionalità è fattibile con il plugin updater di Tauri, ma richiede una piccola infrastruttura di rilascio sicura. La documentazione ufficiale è qui:
 
-Flusso previsto:
+- https://v2.tauri.app/plugin/updater/
+- https://v2.tauri.app/distribute/pipelines/github/
 
-1. Si aumenta la versione in `src-tauri/tauri.conf.json`.
-2. Si pubblica una nuova release GitHub con installer e file di aggiornamento firmati.
-3. Il gestionale controlla online se esiste una versione più recente.
-4. Se disponibile, mostra un avviso con versione e note di aggiornamento.
-5. L'utente conferma, il gestionale scarica l'aggiornamento, verifica la firma e installa la nuova versione.
+### Obiettivo per l'utente
 
-Per completarla servono:
+Quando il gestionale si apre e trova una versione più recente:
 
-- plugin Tauri updater installato lato Rust e frontend;
-- chiave privata di firma custodita nei secret GitHub;
-- chiave pubblica configurata nel programma;
-- pipeline GitHub Actions che crea release, installer e firme;
-- endpoint `latest.json` o GitHub Release interrogabile dal gestionale.
+1. mostra un avviso con numero versione e note di aggiornamento;
+2. chiede conferma prima di installare;
+3. scarica l'aggiornamento;
+4. verifica la firma digitale dell'aggiornamento;
+5. installa la nuova versione e riapre il gestionale.
 
-Nota: se il PC della parrocchia non ha internet, resterà sempre valida l'installazione manuale tramite chiavetta.
+Se il PC della parrocchia non ha internet, resta sempre valida l'installazione manuale tramite chiavetta.
+
+### Passo 1: installare il plugin updater
+
+Dal progetto:
+
+```powershell
+npm run tauri add updater
+```
+
+Questo aggiunge:
+
+- dipendenza Rust `tauri-plugin-updater`;
+- pacchetto frontend `@tauri-apps/plugin-updater`;
+- configurazione base Tauri.
+
+### Passo 2: generare le chiavi di firma
+
+Gli aggiornamenti devono essere firmati. Tauri non permette aggiornamenti non firmati.
+
+```powershell
+npm run tauri signer generate -- -w "$env:USERPROFILE\\.tauri\\gestionale-intenzioni-messe.key"
+```
+
+Conserva con attenzione:
+
+- chiave privata: serve per pubblicare aggiornamenti, non va condivisa;
+- password della chiave privata, se impostata;
+- chiave pubblica: va inserita in `src-tauri/tauri.conf.json`.
+
+Se perdi la chiave privata, i PC già installati non potranno più ricevere aggiornamenti automatici firmati con quella catena.
+
+### Passo 3: configurare `tauri.conf.json`
+
+Nel file `src-tauri/tauri.conf.json` servirà una sezione simile:
+
+```json
+{
+  "bundle": {
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "CHIAVE_PUBBLICA_GENERATA_DA_TAURI",
+      "endpoints": [
+        "https://github.com/Dimensione4/gestionale-intenzioni-messe/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
+```
+
+`installMode: "passive"` mostra una piccola finestra di avanzamento durante l'installazione. È la scelta più chiara per un utente non tecnico.
+
+### Passo 4: aggiungere i secret su GitHub
+
+Nel repository GitHub privato:
+
+1. apri **Settings**;
+2. vai in **Secrets and variables -> Actions**;
+3. aggiungi:
+   - `TAURI_SIGNING_PRIVATE_KEY`;
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, se hai impostato una password.
+
+La chiave privata può essere inserita come contenuto della chiave oppure come valore gestito dalla pipeline, in base a come viene generata e conservata.
+
+### Passo 5: creare la pipeline GitHub Actions
+
+Crea `.github/workflows/release.yml` con un workflow Windows. Esempio di base:
+
+```yaml
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "app-v*"
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Gestionale Intenzioni Messe ${{ github.ref_name }}"
+          releaseBody: "Aggiornamento del gestionale. Vedi le note versione nel changelog."
+          releaseDraft: false
+          prerelease: false
+```
+
+### Passo 6: pubblicare una nuova versione
+
+1. Aggiorna la versione in:
+   - `src-tauri/tauri.conf.json`;
+   - `src-tauri/Cargo.toml`;
+   - `package.json`, se vuoi tenerlo allineato.
+2. Scrivi le note di versione nel commit o nella release.
+3. Crea e pusha un tag:
+
+```powershell
+git add .
+git commit -m "release: versione 0.2.0"
+git tag app-v0.2.0
+git push
+git push origin app-v0.2.0
+```
+
+4. GitHub Actions crea la release e carica gli installer.
+5. Il file `latest.json` deve puntare all'artefatto Windows e includere la firma `.sig`.
+
+### Passo 7: integrare il controllo aggiornamenti nell'app
+
+Nel frontend si userà il plugin updater per controllare gli aggiornamenti all'avvio o da **Impostazioni**.
+
+Flusso UI consigliato:
+
+1. all'avvio controlla in modo silenzioso;
+2. se trova una nuova versione mostra una modale: versione attuale, nuova versione, note;
+3. pulsanti:
+   - **Installa aggiornamento**;
+   - **Ricordamelo più tardi**;
+4. dopo conferma scarica, installa e riavvia.
+
+### Stato attuale
+
+Al momento il gestionale è pronto per installazione manuale tramite `.exe` o `.msi`. L'updater automatico è documentato ma non ancora attivato, perché prima vanno create e custodite le chiavi di firma.
 
 ## Sviluppo
 

@@ -8,7 +8,7 @@ describe("footer applicazione",()=>{
 
     expect(screen.getByText(/Dimensione 4 di Dario Marco Bellini/i)).toBeInTheDocument();
     await waitFor(()=>expect(screen.getByText(/v1\.2\.3/i)).toBeInTheDocument());
-    expect(screen.getByRole("link",{name:/dario\.bellini@dimensione4\.it/i})).toHaveAttribute("href","mailto:dario.bellini@dimensione4.it");
+    expect(screen.getByRole("link",{name:/dariomarcobellini@dimensione4\.it/i})).toHaveAttribute("href","mailto:dariomarcobellini@dimensione4.it");
     expect(screen.getByRole("link",{name:/whatsapp/i})).toHaveAttribute("href","https://wa.me/393334404903");
     expect(screen.getByRole("link",{name:/www\.dimensione4\.it/i})).toHaveAttribute("href","https://www.dimensione4.it");
   });
