@@ -569,6 +569,17 @@ fn upload_google_drive_backup(
     }
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if !(trimmed.starts_with("https://drive.google.com/")
+        || trimmed.starts_with("https://docs.google.com/"))
+    {
+        return Err("Posso aprire solo link sicuri di Google Drive.".into());
+    }
+    open::that(trimmed).map_err(|e| format!("Non riesco ad aprire il browser: {e}"))
+}
+
 fn collect_sqlite_files(folder: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
     let Ok(entries) = std::fs::read_dir(folder) else {
         return;
@@ -717,7 +728,8 @@ pub fn run() {
             restore_latest_backup,
             has_google_drive_token,
             connect_google_drive,
-            upload_google_drive_backup
+            upload_google_drive_backup,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("errore durante l'avvio dell'applicazione");

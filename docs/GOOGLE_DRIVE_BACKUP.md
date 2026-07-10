@@ -101,3 +101,10 @@ Gestionale Intenzioni Messe/
 Il prossimo step tecnico è automatizzare anche l'upload periodico senza chiedere
 ogni volta la password di cifratura, scegliendo se salvarla in modo sicuro nel
 keyring o se mantenere solo il caricamento manuale cifrato.
+
+Al termine dell'upload manuale il gestionale mostra:
+
+- conferma "Backup caricato su Google Drive";
+- percorso della cartella Drive;
+- nome del file `.gimbackup`;
+- pulsante **Apri su Google Drive** se Google restituisce il link del file.

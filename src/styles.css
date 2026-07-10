@@ -127,6 +127,9 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .drive-config svg { flex: 0 0 auto; }
 .drive-config > div { display: grid; gap: 2px; }
 .drive-config span { color: inherit; font-size: 14px; }
+.drive-upload-result { display: grid; gap: 8px; margin: 12px 0; padding: 14px; color: #14533b; background: #edf8f1; border: 1px solid #9bcbb0; border-radius: 10px; }
+.drive-upload-result span { overflow-wrap: anywhere; }
+.drive-upload-result .secondary-button { width: fit-content; }
 .backup-encryption { display: grid; gap: 10px; margin-top: 26px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
 .tutorial-dialog { max-width: 680px; }
 .tutorial-demo-dialog { width: min(1040px, 96vw); }

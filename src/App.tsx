@@ -429,7 +429,7 @@ function AppearanceSettings({form,field,saved,message}:{form:ParishSettings;fiel
 
 function BackupSettings(){
   const [message,setMessage]=useState(""),[restore,setRestore]=useState(false),[backupSettings,setBackupSettings]=useState<ParishSettings|null>(null),[encryptPassphrase,setEncryptPassphrase]=useState("");
-  const [driveConnection,setDriveConnection]=useState<GoogleDriveConnection|null>(null),[driveConnecting,setDriveConnecting]=useState(false);
+  const [driveConnection,setDriveConnection]=useState<GoogleDriveConnection|null>(null),[driveConnecting,setDriveConnecting]=useState(false),[lastDriveUpload,setLastDriveUpload]=useState<GoogleDriveUploadResult|null>(null);
   const googleDriveClientId=import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID?.trim()??"";
   const googleDriveClientSecret=import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_SECRET?.trim()??"";
   const googleDriveScope=import.meta.env.VITE_GOOGLE_DRIVE_SCOPE?.trim()||"https://www.googleapis.com/auth/drive.file";
@@ -444,6 +444,7 @@ function BackupSettings(){
   async function connectGoogleDrive(){
     if(!backupSettings)return;
     setMessage("");
+    setLastDriveUpload(null);
     setDriveConnecting(true);
     try{
       await saveSettings(backupSettings);
@@ -455,15 +456,22 @@ function BackupSettings(){
   }
   async function createEncryptedBackupAndMaybeUpload(){
     if(!backupSettings)return;
+    setLastDriveUpload(null);
     try{
       const encryptedPath=await createBackup({encryptPassphrase});
       if((backupSettings.online_backup_enabled??0)===1&&driveConnected){
         const uploaded=await invoke<GoogleDriveUploadResult>("upload_google_drive_backup",{filePath:encryptedPath,clientId:googleDriveClientId,clientSecret:googleDriveClientSecret});
-        setMessage(`Backup cifrato creato e caricato su Google Drive: ${uploaded.folder_path}/${uploaded.name}`);
+        setLastDriveUpload(uploaded);
+        setMessage(`Backup caricato su Google Drive nella cartella ${uploaded.folder_path}.`);
         return;
       }
       setMessage(`Backup cifrato creato in: ${encryptedPath}`);
     }catch(e){setMessage(`Errore: ${String(e)}`)}
+  }
+  async function openDriveUpload(){
+    if(!lastDriveUpload?.web_view_link)return;
+    try{await invoke("open_external_url",{url:lastDriveUpload.web_view_link})}
+    catch(e){setMessage(`Errore apertura Google Drive: ${String(e)}`)}
   }
   const driveConnected=driveConnection?.connected??false;
   return <div><h2>Backup e ripristino</h2><p>I backup locali vengono salvati automaticamente nella cartella Documenti, divisi per giornata e orario.</p>
@@ -477,7 +485,7 @@ function BackupSettings(){
         <small>{driveConnected?"Il collegamento è pronto: il prossimo step sarà caricare automaticamente i backup cifrati su Drive.":"Per collegarlo: spunta il backup online, salva le preferenze se vuoi, poi premi Collega Google Drive e autorizza dal browser."}</small></section></div>}
     {backupSettings&&<div className="settings-actions"><button className="primary" onClick={saveBackupPreferences}><Save/> Salva preferenze backup</button></div>}
     <div className="backup-encryption"><h3>Backup cifrato manuale</h3><p>Usalo per creare un file `.gimbackup` sicuro da copiare su cloud o chiavetta. La password non viene salvata.</p><label>Password di cifratura<input type="password" value={encryptPassphrase} onChange={e=>setEncryptPassphrase(e.target.value)} placeholder="Almeno 12 caratteri"/></label></div>
-    {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={createEncryptedBackupAndMaybeUpload}><Shield/> {driveConnected&&(backupSettings?.online_backup_enabled??0)===1?"Crea backup cifrato e carica su Drive":"Crea backup cifrato"}</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>
+    {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}{lastDriveUpload&&<div className="drive-upload-result"><strong>Backup online completato</strong><span>{lastDriveUpload.folder_path}/{lastDriveUpload.name}</span>{lastDriveUpload.web_view_link&&<button className="secondary-button" onClick={openDriveUpload}><Cloud/> Apri su Google Drive</button>}</div>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setLastDriveUpload(null);setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={createEncryptedBackupAndMaybeUpload}><Shield/> {driveConnected&&(backupSettings?.online_backup_enabled??0)===1?"Crea backup cifrato e carica su Drive":"Crea backup cifrato"}</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>
     <UpdateSettings/>
     {restore&&<ConfirmDialog title="Ripristinare l’ultimo backup?" body="Prima del ripristino verrà conservata una copia del database attuale. L’app si riavvierà automaticamente." confirmLabel="Ripristina backup" close={()=>setRestore(false)} confirmed={async()=>{await invoke("restore_latest_backup")}}/>}</div>;
 }
