@@ -6,13 +6,21 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rand_core::RngCore;
+use serde::Serialize;
 use sha2::Sha256;
+use std::io::{Read, Write};
 use tauri::Manager;
 const SERVICE: &str = "it.parrocchia.gestionale-intenzioni";
 const USER: &str = "admin-password-hash";
+const GOOGLE_DRIVE_TOKEN_USER: &str = "google-drive-oauth-token";
+const GOOGLE_DRIVE_ACCOUNT_USER: &str = "google-drive-account-email";
 fn entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(SERVICE, USER).map_err(|e| e.to_string())
+}
+fn named_entry(user: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(SERVICE, user).map_err(|e| e.to_string())
 }
 #[tauri::command]
 fn has_password() -> bool {
@@ -117,6 +125,180 @@ fn encrypt_backup_file(source_path: String, passphrase: String) -> Result<String
     output.extend_from_slice(&ciphertext);
     std::fs::write(&target, output).map_err(|e| e.to_string())?;
     Ok(target.display().to_string())
+}
+
+#[derive(Serialize)]
+struct GoogleDriveConnection {
+    connected: bool,
+    account_email: String,
+    message: String,
+}
+
+fn random_urlsafe(bytes_len: usize) -> String {
+    let mut bytes = vec![0u8; bytes_len];
+    OsRng.fill_bytes(&mut bytes);
+    URL_SAFE_NO_PAD.encode(bytes)
+}
+
+fn random_hex(bytes_len: usize) -> String {
+    let mut bytes = vec![0u8; bytes_len];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+fn sha256_base64url(input: &str) -> String {
+    use sha2::Digest;
+    let digest = Sha256::digest(input.as_bytes());
+    URL_SAFE_NO_PAD.encode(digest)
+}
+
+fn query_value(query: &str, key: &str) -> Option<String> {
+    query.split('&').find_map(|pair| {
+        let (k, v) = pair.split_once('=')?;
+        if k == key {
+            urlencoding::decode(v).ok().map(|x| x.into_owned())
+        } else {
+            None
+        }
+    })
+}
+
+fn wait_for_google_callback(
+    listener: std::net::TcpListener,
+    expected_state: &str,
+) -> Result<String, String> {
+    let started = std::time::Instant::now();
+    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    loop {
+        if started.elapsed() > std::time::Duration::from_secs(180) {
+            return Err(
+                "Autorizzazione Google scaduta: riprova dal pulsante Collega Google Drive.".into(),
+            );
+        }
+        match listener.accept() {
+            Ok((mut stream, _)) => {
+                let mut buffer = [0u8; 8192];
+                let size = stream.read(&mut buffer).map_err(|e| e.to_string())?;
+                let request = String::from_utf8_lossy(&buffer[..size]);
+                let first_line = request.lines().next().unwrap_or_default();
+                let path = first_line.split_whitespace().nth(1).unwrap_or_default();
+                let query = path.split_once('?').map(|(_, q)| q).unwrap_or_default();
+                let html_ok = "<!doctype html><html><head><meta charset=\"utf-8\"><title>Google Drive collegato</title></head><body style=\"font-family:Arial,sans-serif;padding:32px\"><h1>Google Drive collegato</h1><p>Puoi tornare al gestionale.</p></body></html>";
+                let html_error = "<!doctype html><html><head><meta charset=\"utf-8\"><title>Autorizzazione non riuscita</title></head><body style=\"font-family:Arial,sans-serif;padding:32px\"><h1>Autorizzazione non riuscita</h1><p>Torna al gestionale e riprova.</p></body></html>";
+                let error = query_value(query, "error");
+                let state = query_value(query, "state").unwrap_or_default();
+                let code = query_value(query, "code");
+                let body = if error.is_some() || state != expected_state || code.is_none() {
+                    html_error
+                } else {
+                    html_ok
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.as_bytes().len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes());
+                if let Some(err) = error {
+                    return Err(format!("Google ha rifiutato l'autorizzazione: {err}"));
+                }
+                if state != expected_state {
+                    return Err(
+                        "Risposta OAuth non valida: stato di sicurezza non corrispondente.".into(),
+                    );
+                }
+                return code.ok_or("Google non ha restituito il codice OAuth.".into());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(std::time::Duration::from_millis(120));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+}
+
+#[tauri::command]
+fn has_google_drive_token() -> GoogleDriveConnection {
+    let token = named_entry(GOOGLE_DRIVE_TOKEN_USER)
+        .and_then(|e| e.get_password().map_err(|x| x.to_string()))
+        .ok();
+    let account_email = named_entry(GOOGLE_DRIVE_ACCOUNT_USER)
+        .and_then(|e| e.get_password().map_err(|x| x.to_string()))
+        .unwrap_or_default();
+    GoogleDriveConnection {
+        connected: token.is_some(),
+        account_email,
+        message: if token.is_some() {
+            "Google Drive collegato.".into()
+        } else {
+            "Google Drive non ancora collegato.".into()
+        },
+    }
+}
+
+#[tauri::command]
+fn connect_google_drive(
+    client_id: String,
+    scope: String,
+    account_email: String,
+) -> Result<GoogleDriveConnection, String> {
+    let client_id = client_id.trim().to_string();
+    if client_id.is_empty() {
+        return Err("Client ID Google mancante nel file .env.".into());
+    }
+    let scope = if scope.trim().is_empty() {
+        "https://www.googleapis.com/auth/drive.file".to_string()
+    } else {
+        scope.trim().to_string()
+    };
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    let redirect_uri = format!("http://127.0.0.1:{port}/oauth/google/callback");
+    let state = random_hex(16);
+    let code_verifier = random_urlsafe(48);
+    let code_challenge = sha256_base64url(&code_verifier);
+    let auth_url = format!(
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent&code_challenge={}&code_challenge_method=S256&state={}",
+        urlencoding::encode(&client_id),
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode(&scope),
+        urlencoding::encode(&code_challenge),
+        urlencoding::encode(&state)
+    );
+    open::that(auth_url).map_err(|e| format!("Non riesco ad aprire il browser: {e}"))?;
+    let code = wait_for_google_callback(listener, &state)?;
+    let client = reqwest::blocking::Client::new();
+    let response = client
+        .post("https://oauth2.googleapis.com/token")
+        .form(&[
+            ("client_id", client_id.as_str()),
+            ("code", code.as_str()),
+            ("code_verifier", code_verifier.as_str()),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", redirect_uri.as_str()),
+        ])
+        .send()
+        .map_err(|e| format!("Scambio token Google non riuscito: {e}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .map_err(|e| format!("Risposta Google non leggibile: {e}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "Google non ha rilasciato il token ({status}): {body}"
+        ));
+    }
+    named_entry(GOOGLE_DRIVE_TOKEN_USER)?
+        .set_password(&body)
+        .map_err(|e| e.to_string())?;
+    named_entry(GOOGLE_DRIVE_ACCOUNT_USER)?
+        .set_password(account_email.trim())
+        .map_err(|e| e.to_string())?;
+    Ok(GoogleDriveConnection {
+        connected: true,
+        account_email: account_email.trim().to_string(),
+        message: "Google Drive collegato. Token salvato nel portachiavi di Windows.".into(),
+    })
 }
 
 fn collect_sqlite_files(folder: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
@@ -264,7 +446,9 @@ pub fn run() {
             new_backup_path,
             encrypt_backup_file,
             export_archive_csv,
-            restore_latest_backup
+            restore_latest_backup,
+            has_google_drive_token,
+            connect_google_drive
         ])
         .run(tauri::generate_context!())
         .expect("errore durante l'avvio dell'applicazione");

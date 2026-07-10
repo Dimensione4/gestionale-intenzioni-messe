@@ -12,6 +12,7 @@ import type { AuditLog, MassIntention, MassScheduleRule, NewIntention, ParishSet
 import { getCelebrationOfDay } from "./lib/saints";
 
 type SettingsSection="parish"|"schedules"|"receipt"|"appearance"|"user"|"backup";
+type GoogleDriveConnection={connected:boolean;account_email:string;message:string};
 
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
@@ -427,22 +428,39 @@ function AppearanceSettings({form,field,saved,message}:{form:ParishSettings;fiel
 
 function BackupSettings(){
   const [message,setMessage]=useState(""),[restore,setRestore]=useState(false),[backupSettings,setBackupSettings]=useState<ParishSettings|null>(null),[encryptPassphrase,setEncryptPassphrase]=useState("");
-  const googleDriveConfigured=Boolean(import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID);
+  const [driveConnection,setDriveConnection]=useState<GoogleDriveConnection|null>(null),[driveConnecting,setDriveConnecting]=useState(false);
+  const googleDriveClientId=import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID?.trim()??"";
+  const googleDriveScope=import.meta.env.VITE_GOOGLE_DRIVE_SCOPE?.trim()||"https://www.googleapis.com/auth/drive.file";
+  const googleDriveConfigured=Boolean(googleDriveClientId);
   useEffect(()=>{loadSettings().then(setBackupSettings)},[]);
+  useEffect(()=>{invoke<GoogleDriveConnection>("has_google_drive_token").then(setDriveConnection).catch(()=>setDriveConnection(null))},[]);
   async function saveBackupPreferences(){
     if(!backupSettings)return;
     await saveSettings(backupSettings);
     setMessage("Preferenze backup salvate.");
   }
+  async function connectGoogleDrive(){
+    if(!backupSettings)return;
+    setMessage("");
+    setDriveConnecting(true);
+    try{
+      await saveSettings(backupSettings);
+      const connection=await invoke<GoogleDriveConnection>("connect_google_drive",{clientId:googleDriveClientId,scope:googleDriveScope,accountEmail:backupSettings.online_backup_account_email??""});
+      setDriveConnection(connection);
+      setMessage(connection.message);
+    }catch(e){setMessage(`Errore Google Drive: ${String(e)}`)}
+    finally{setDriveConnecting(false)}
+  }
+  const driveConnected=driveConnection?.connected??false;
   return <div><h2>Backup e ripristino</h2><p>I backup locali vengono salvati automaticamente nella cartella Documenti, divisi per giornata e orario.</p>
     {backupSettings&&<div className="backup-grid"><section className="backup-card"><h3>Backup locale automatico</h3><p>Consigliato: ogni 6 ore. Il gestionale crea cartelle come <code>Backup/2026-07-09/18-00</code>.</p><label>Frequenza<select value={backupSettings.backup_frequency_hours??6} onChange={e=>setBackupSettings({...backupSettings,backup_frequency_hours:Number(e.target.value) as 6|12|24})}><option value={6}>Ogni 6 ore</option><option value={12}>Ogni 12 ore</option><option value={24}>Ogni 24 ore</option></select></label></section>
       <section className="backup-card online-backup-card"><div className="backup-card-title"><h3>Backup online</h3><span className={(backupSettings.online_backup_enabled??0)===1?"status-pill active":"status-pill"}>{(backupSettings.online_backup_enabled??0)===1?"Attivo":"Disattivato"}</span></div><p>Google Drive richiederà autorizzazione OAuth dal browser. I file online devono essere cifrati prima dell'upload.</p>
         <label className="check-field compact-check"><input type="checkbox" checked={(backupSettings.online_backup_enabled??0)===1} onChange={e=>setBackupSettings({...backupSettings,online_backup_enabled:e.target.checked?1:0})}/><span>Voglio preparare il backup online</span></label>
         <label>Email Google Drive<input type="email" value={backupSettings.online_backup_account_email??""} onChange={e=>setBackupSettings({...backupSettings,online_backup_account_email:e.target.value})} placeholder="nome@gmail.com"/></label>
         <label className="check-field compact-check"><input type="checkbox" checked={(backupSettings.online_backup_encryption_enabled??1)!==0} onChange={e=>setBackupSettings({...backupSettings,online_backup_encryption_enabled:e.target.checked?1:0})}/><span>Cifra sempre i file prima dell'upload</span></label>
-        <div className={googleDriveConfigured?"drive-config ok":"drive-config"}><Cloud/><div><strong>{googleDriveConfigured?"Configurazione Google rilevata":"Configurazione Google mancante"}</strong><span>{googleDriveConfigured?"Client ID presente in .env. Manca solo il flusso OAuth nell'app.":"Inserisci VITE_GOOGLE_DRIVE_CLIENT_ID nel file .env."}</span></div></div>
-        <button className="secondary-button" disabled={!googleDriveConfigured||((backupSettings.online_backup_enabled??0)!==1)} onClick={()=>setMessage("Google Drive è configurato. Prossimo step tecnico: autorizzazione OAuth e salvataggio token nel keyring di Windows.")}><Cloud/> Collega Google Drive</button>
-        <small>Per attivarlo davvero: spunta il backup online, salva le preferenze, poi implementiamo il flusso OAuth che apre il browser e collega l'account Google.</small></section></div>}
+        <div className={(googleDriveConfigured||driveConnected)?"drive-config ok":"drive-config"}><Cloud/><div><strong>{driveConnected?"Google Drive collegato":googleDriveConfigured?"Configurazione Google rilevata":"Configurazione Google mancante"}</strong><span>{driveConnected?`Token salvato in Windows${driveConnection?.account_email?` per ${driveConnection.account_email}`:""}.`:googleDriveConfigured?"Client ID presente in .env. Premi Collega Google Drive per autorizzare l'account.":"Inserisci VITE_GOOGLE_DRIVE_CLIENT_ID nel file .env."}</span></div></div>
+        <button className="secondary-button" disabled={driveConnecting||!googleDriveConfigured||((backupSettings.online_backup_enabled??0)!==1)} onClick={connectGoogleDrive}><Cloud/> {driveConnecting?"Attendo autorizzazione...":driveConnected?"Ricollega Google Drive":"Collega Google Drive"}</button>
+        <small>{driveConnected?"Il collegamento è pronto: il prossimo step sarà caricare automaticamente i backup cifrati su Drive.":"Per collegarlo: spunta il backup online, salva le preferenze se vuoi, poi premi Collega Google Drive e autorizza dal browser."}</small></section></div>}
     {backupSettings&&<div className="settings-actions"><button className="primary" onClick={saveBackupPreferences}><Save/> Salva preferenze backup</button></div>}
     <div className="backup-encryption"><h3>Backup cifrato manuale</h3><p>Usalo per creare un file `.gimbackup` sicuro da copiare su cloud o chiavetta. La password non viene salvata.</p><label>Password di cifratura<input type="password" value={encryptPassphrase} onChange={e=>setEncryptPassphrase(e.target.value)} placeholder="Almeno 12 caratteri"/></label></div>
     {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={async()=>{try{setMessage(`Backup cifrato creato in: ${await createBackup({encryptPassphrase})}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}><Shield/> Crea backup cifrato</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>

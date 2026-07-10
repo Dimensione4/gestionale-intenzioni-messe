@@ -15,5 +15,8 @@ describe("stile backup online",()=>{
     expect(app).toContain("Disattivato");
     expect(app).toContain("Attivo");
     expect(app).toContain("Configurazione Google rilevata");
+    expect(app).toContain("connect_google_drive");
+    expect(app).toContain("Google Drive collegato");
+    expect(app).not.toContain("Prossimo step tecnico");
   });
 });
