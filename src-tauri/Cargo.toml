@@ -1,6 +1,6 @@
 [package]
 name="gestionale-intenzioni-messe"
-version="0.1.2"
+version="0.1.3"
 description="Gestionale desktop locale per le intenzioni delle messe"
 edition="2021"
 [lib]
@@ -25,6 +25,7 @@ base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 urlencoding = "2"
 open = "5"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

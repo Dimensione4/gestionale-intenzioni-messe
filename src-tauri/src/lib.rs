@@ -653,9 +653,95 @@ fn apply_pending_restore() {
         }
     }
 }
+
+fn current_migration_checksums() -> Vec<(i64, [u8; 48])> {
+    use sha2::Digest;
+    [
+        (1, include_str!("../migrations/001_initial.sql")),
+        (2, include_str!("../migrations/002_intention_integrity.sql")),
+        (
+            3,
+            include_str!("../migrations/003_history_and_personalization.sql"),
+        ),
+        (4, include_str!("../migrations/004_atomic_history.sql")),
+        (5, include_str!("../migrations/005_audit_before_after.sql")),
+        (
+            6,
+            include_str!("../migrations/006_receipt_configuration.sql"),
+        ),
+        (7, include_str!("../migrations/007_backup_settings.sql")),
+        (
+            8,
+            include_str!("../migrations/008_receipt_custom_label.sql"),
+        ),
+    ]
+    .into_iter()
+    .map(|(version, sql)| {
+        let digest = sha2::Sha384::digest(sql.as_bytes());
+        let mut checksum = [0u8; 48];
+        checksum.copy_from_slice(&digest);
+        (version, checksum)
+    })
+    .collect()
+}
+
+fn align_existing_migration_checksums() {
+    let Ok(appdata) = std::env::var("APPDATA") else {
+        return;
+    };
+    let database = std::path::PathBuf::from(appdata)
+        .join("it.parrocchia.gestionale-intenzioni")
+        .join("gestionale.sqlite");
+    if !database.exists() {
+        return;
+    }
+    let Ok(connection) = rusqlite::Connection::open(&database) else {
+        return;
+    };
+    let has_table = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0)
+        > 0;
+    if !has_table {
+        return;
+    }
+    let mut updates = Vec::new();
+    for (version, checksum) in current_migration_checksums() {
+        let saved = connection
+            .query_row(
+                "SELECT checksum FROM _sqlx_migrations WHERE version=$1 AND success=1",
+                rusqlite::params![version],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .ok();
+        if saved.as_deref() != Some(checksum.as_slice()) {
+            updates.push((version, checksum));
+        }
+    }
+    if updates.is_empty() {
+        return;
+    }
+    let safety = database.with_file_name(format!(
+        "gestionale.before-migration-checksum-{}.sqlite",
+        chrono::Local::now().format("%Y-%m-%d-%H-%M-%S")
+    ));
+    let _ = std::fs::copy(&database, safety);
+    for (version, checksum) in updates {
+        let _ = connection.execute(
+            "UPDATE _sqlx_migrations SET checksum=$1 WHERE version=$2 AND success=1",
+            rusqlite::params![checksum.as_slice(), version],
+        );
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     apply_pending_restore();
+    align_existing_migration_checksums();
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
