@@ -258,6 +258,21 @@ git push origin app-v0.2.0
 4. GitHub Actions crea la release e carica gli installer.
 5. Il file `latest.json` deve puntare all'artefatto Windows e includere la firma `.sig`.
 
+### Prima inizializzazione del canale updater
+
+Il pulsante **Controlla aggiornamenti** funziona solo dopo la prima release firmata,
+perché l'endpoint deve trovare `latest.json` tra gli asset GitHub.
+
+Per inizializzare il canale sulla versione attuale:
+
+```powershell
+git tag app-v0.1.0
+git push origin app-v0.1.0
+```
+
+Quando GitHub Actions termina, la release conterrà `latest.json` e il controllo
+aggiornamenti non mostrerà più l'errore sul JSON mancante.
+
 ### Passo 7: integrare il controllo aggiornamenti nell'app
 
 Nel frontend si userà il plugin updater per controllare gli aggiornamenti all'avvio o da **Impostazioni**.

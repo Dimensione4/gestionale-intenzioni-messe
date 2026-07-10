@@ -42,6 +42,13 @@ async function checkForAvailableUpdate(){
   return check({timeout:10000});
 }
 
+export function updateCheckErrorMessage(error:unknown){
+  const raw=String(error);
+  if(raw.includes("valid release JSON")||raw.includes("latest.json"))return "Canale aggiornamenti non ancora inizializzato: su GitHub Releases manca il file latest.json. Pubblica una release firmata e riprova.";
+  if(raw.toLowerCase().includes("fetch"))return "Non riesco a contattare il canale aggiornamenti. Verifica la connessione internet e riprova.";
+  return `Controllo aggiornamenti non riuscito: ${raw}`;
+}
+
 function updateBody(update:Update){
   return update.body?.trim()||"Nuova versione pronta per l'installazione.";
 }
@@ -448,7 +455,7 @@ function UpdateSettings(){
   async function manualCheck(){
     setChecking(true);setError("");setMessage("");setUpdate(null);setDialogOpen(false);
     try{const found=await checkForAvailableUpdate();if(found){setUpdate(found);setMessage(`Disponibile la versione ${found.version}.`)}else setMessage("Il gestionale è già aggiornato.");}
-    catch(e){setError(`Controllo aggiornamenti non riuscito: ${String(e)}`)}
+    catch(e){setError(updateCheckErrorMessage(e))}
     finally{setChecking(false)}
   }
   return <section className="update-settings"><div><h3>Aggiornamenti del gestionale</h3><p>Controlla se è disponibile una nuova versione firmata pubblicata tra le release GitHub.</p></div>
