@@ -6,6 +6,9 @@ describe("stile backup online",()=>{
     const css=readFileSync("src/styles.css","utf8");
     const app=readFileSync("src/App.tsx","utf8");
 
+    expect(css).toContain(".online-backup-card label.compact-check");
+    expect(css).toContain("display: flex");
+    expect(css).toContain("flex-direction: row");
     expect(css).toContain(".compact-check input[type=\"checkbox\"]");
     expect(css).toContain("width: 22px");
     expect(css).toContain(".status-pill");
