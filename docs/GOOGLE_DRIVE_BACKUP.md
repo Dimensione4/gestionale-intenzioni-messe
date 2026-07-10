@@ -85,11 +85,19 @@ Il gestionale oggi ha:
 - generazione backup cifrato `.gimbackup`;
 - campo email Google Drive;
 - collegamento OAuth Google Drive via browser;
-- salvataggio token nel keyring di Windows.
+- salvataggio token nel keyring di Windows;
+- upload manuale del backup cifrato su Google Drive.
 
-Il prossimo step tecnico è usare il token salvato per caricare i backup cifrati:
+Quando Google Drive è collegato e il backup online è attivo, il pulsante
+**Crea backup cifrato e carica su Drive** genera il `.gimbackup` e lo carica in:
 
-1. recuperare o aggiornare access token dal refresh token;
-2. creare una cartella Drive dedicata;
-3. caricare il file `.gimbackup` su Drive;
-4. mostrare data/ora dell'ultimo backup online riuscito.
+```text
+Gestionale Intenzioni Messe/
+  Backup/
+    YYYY-MM-DD/
+      HH-MM/
+```
+
+Il prossimo step tecnico è automatizzare anche l'upload periodico senza chiedere
+ogni volta la password di cifratura, scegliendo se salvarla in modo sicuro nel
+keyring o se mantenere solo il caricamento manuale cifrato.

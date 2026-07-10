@@ -13,6 +13,7 @@ import { getCelebrationOfDay } from "./lib/saints";
 
 type SettingsSection="parish"|"schedules"|"receipt"|"appearance"|"user"|"backup";
 type GoogleDriveConnection={connected:boolean;account_email:string;message:string};
+type GoogleDriveUploadResult={id:string;name:string;web_view_link?:string|null;folder_path:string};
 
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
@@ -452,6 +453,18 @@ function BackupSettings(){
     }catch(e){setMessage(`Errore Google Drive: ${String(e)}`)}
     finally{setDriveConnecting(false)}
   }
+  async function createEncryptedBackupAndMaybeUpload(){
+    if(!backupSettings)return;
+    try{
+      const encryptedPath=await createBackup({encryptPassphrase});
+      if((backupSettings.online_backup_enabled??0)===1&&driveConnected){
+        const uploaded=await invoke<GoogleDriveUploadResult>("upload_google_drive_backup",{filePath:encryptedPath,clientId:googleDriveClientId,clientSecret:googleDriveClientSecret});
+        setMessage(`Backup cifrato creato e caricato su Google Drive: ${uploaded.folder_path}/${uploaded.name}`);
+        return;
+      }
+      setMessage(`Backup cifrato creato in: ${encryptedPath}`);
+    }catch(e){setMessage(`Errore: ${String(e)}`)}
+  }
   const driveConnected=driveConnection?.connected??false;
   return <div><h2>Backup e ripristino</h2><p>I backup locali vengono salvati automaticamente nella cartella Documenti, divisi per giornata e orario.</p>
     {backupSettings&&<div className="backup-grid"><section className="backup-card"><h3>Backup locale automatico</h3><p>Consigliato: ogni 6 ore. Il gestionale crea cartelle come <code>Backup/2026-07-09/18-00</code>.</p><label>Frequenza<select value={backupSettings.backup_frequency_hours??6} onChange={e=>setBackupSettings({...backupSettings,backup_frequency_hours:Number(e.target.value) as 6|12|24})}><option value={6}>Ogni 6 ore</option><option value={12}>Ogni 12 ore</option><option value={24}>Ogni 24 ore</option></select></label></section>
@@ -464,7 +477,7 @@ function BackupSettings(){
         <small>{driveConnected?"Il collegamento è pronto: il prossimo step sarà caricare automaticamente i backup cifrati su Drive.":"Per collegarlo: spunta il backup online, salva le preferenze se vuoi, poi premi Collega Google Drive e autorizza dal browser."}</small></section></div>}
     {backupSettings&&<div className="settings-actions"><button className="primary" onClick={saveBackupPreferences}><Save/> Salva preferenze backup</button></div>}
     <div className="backup-encryption"><h3>Backup cifrato manuale</h3><p>Usalo per creare un file `.gimbackup` sicuro da copiare su cloud o chiavetta. La password non viene salvata.</p><label>Password di cifratura<input type="password" value={encryptPassphrase} onChange={e=>setEncryptPassphrase(e.target.value)} placeholder="Almeno 12 caratteri"/></label></div>
-    {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={async()=>{try{setMessage(`Backup cifrato creato in: ${await createBackup({encryptPassphrase})}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}><Shield/> Crea backup cifrato</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>
+    {message&&<p className={message.startsWith("Errore")?"error":"success"}>{message}</p>}<div className="settings-actions"><button className="primary" onClick={async()=>{try{setMessage(`Backup creato in: ${await createBackup()}`)}catch(e){setMessage(`Errore: ${String(e)}`)}}}>Crea backup ora</button><button className="secondary-button" onClick={createEncryptedBackupAndMaybeUpload}><Shield/> {driveConnected&&(backupSettings?.online_backup_enabled??0)===1?"Crea backup cifrato e carica su Drive":"Crea backup cifrato"}</button><button className="secondary-button" onClick={()=>setRestore(true)}>Ripristina ultimo backup</button></div>
     <UpdateSettings/>
     {restore&&<ConfirmDialog title="Ripristinare l’ultimo backup?" body="Prima del ripristino verrà conservata una copia del database attuale. L’app si riavvierà automaticamente." confirmLabel="Ripristina backup" close={()=>setRestore(false)} confirmed={async()=>{await invoke("restore_latest_backup")}}/>}</div>;
 }

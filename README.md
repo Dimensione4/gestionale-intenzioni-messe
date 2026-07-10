@@ -27,9 +27,23 @@ Guide operative:
 
 ## Installazione per l'utente
 
+Scarica l'ultima versione da GitHub Releases:
+
+```text
+https://github.com/Dimensione4/gestionale-intenzioni-messe/releases/latest
+```
+
+Per il prete, il file consigliato è l'installer `.exe`:
+
+```text
+Gestionale.Intenzioni.Messe_0.1.1_x64-setup.exe
+```
+
+In alternativa:
+
 1. Copia su chiavetta uno dei file generati nella cartella `src-tauri/target/release/bundle/`:
-   - `nsis/Gestionale Intenzioni Messe_0.1.0_x64-setup.exe`, consigliato per l'installazione guidata;
-   - `msi/Gestionale Intenzioni Messe_0.1.0_x64_en-US.msi`, utile in ambienti Windows gestiti.
+   - `nsis/Gestionale Intenzioni Messe_0.1.1_x64-setup.exe`, consigliato per l'installazione guidata;
+   - `msi/Gestionale Intenzioni Messe_0.1.1_x64_en-US.msi`, utile in ambienti Windows gestiti.
 2. Sul PC della parrocchia apri il file `.exe` o `.msi` e completa l'installazione.
 3. Al primo avvio crea la password amministratore.
 4. Entra in **Impostazioni** e compila i dati della parrocchia, gli orari standard delle messe e il formato ricevuta `58mm` o `80mm`.
@@ -55,6 +69,13 @@ La frequenza predefinita è ogni 6 ore e può essere modificata in **Impostazion
 
 Per copiare un backup su cloud o chiavetta usa **Crea backup cifrato**: genera un file `.gimbackup` protetto da password. La password non viene salvata dal gestionale.
 
+Se Google Drive è collegato e il backup online è attivo, il pulsante diventa
+**Crea backup cifrato e carica su Drive**. Il file viene caricato in:
+
+```text
+Gestionale Intenzioni Messe/Backup/YYYY-MM-DD/HH-MM
+```
+
 ## Come condividerlo al prete
 
 1. Dal tuo PC esegui la build:
@@ -69,7 +90,7 @@ npm run tauri build
 src-tauri\target\release\bundle\nsis
 ```
 
-3. Copia su chiavetta il file `Gestionale Intenzioni Messe_0.1.0_x64-setup.exe`.
+3. Copia su chiavetta il file `Gestionale Intenzioni Messe_0.1.1_x64-setup.exe`.
 4. Sul PC del prete fai doppio clic sul file copiato.
 5. Se Windows mostra un avviso di protezione, scegli **Ulteriori informazioni** e poi **Esegui comunque**, se il file arriva da te.
 6. Dopo l'installazione apri il gestionale, crea la password e configura parrocchia, orari e ricevute.

@@ -8,7 +8,7 @@ use argon2::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rand_core::RngCore;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::io::{Read, Write};
 use tauri::Manager;
@@ -134,6 +134,36 @@ struct GoogleDriveConnection {
     message: String,
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+struct GoogleTokenResponse {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_in: Option<i64>,
+    token_type: Option<String>,
+    scope: Option<String>,
+}
+
+#[derive(Serialize)]
+struct GoogleDriveUploadResult {
+    id: String,
+    name: String,
+    web_view_link: Option<String>,
+    folder_path: String,
+}
+
+#[derive(Deserialize)]
+struct GoogleDriveListResponse {
+    files: Vec<GoogleDriveFile>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct GoogleDriveFile {
+    id: String,
+    name: String,
+    #[serde(rename = "webViewLink")]
+    web_view_link: Option<String>,
+}
+
 fn random_urlsafe(bytes_len: usize) -> String {
     let mut bytes = vec![0u8; bytes_len];
     OsRng.fill_bytes(&mut bytes);
@@ -160,6 +190,218 @@ fn query_value(query: &str, key: &str) -> Option<String> {
         } else {
             None
         }
+    })
+}
+
+fn google_token_from_keyring() -> Result<GoogleTokenResponse, String> {
+    let raw = named_entry(GOOGLE_DRIVE_TOKEN_USER)?
+        .get_password()
+        .map_err(|_| "Google Drive non è collegato: collega prima l'account.".to_string())?;
+    serde_json::from_str::<GoogleTokenResponse>(&raw)
+        .map_err(|e| format!("Token Google Drive salvato non leggibile: {e}"))
+}
+
+fn save_google_token(token: &GoogleTokenResponse) -> Result<(), String> {
+    let body = serde_json::to_string(token).map_err(|e| e.to_string())?;
+    named_entry(GOOGLE_DRIVE_TOKEN_USER)?
+        .set_password(&body)
+        .map_err(|e| e.to_string())
+}
+
+fn refresh_google_token(
+    current: &GoogleTokenResponse,
+    client_id: &str,
+    client_secret: &str,
+) -> Result<GoogleTokenResponse, String> {
+    let refresh_token = current
+        .refresh_token
+        .as_deref()
+        .ok_or("Google Drive va ricollegato: manca il refresh token.")?;
+    let client = reqwest::blocking::Client::new();
+    let mut form = vec![
+        ("client_id", client_id),
+        ("refresh_token", refresh_token),
+        ("grant_type", "refresh_token"),
+    ];
+    if !client_secret.trim().is_empty() {
+        form.push(("client_secret", client_secret.trim()));
+    }
+    let response = client
+        .post("https://oauth2.googleapis.com/token")
+        .form(&form)
+        .send()
+        .map_err(|e| format!("Refresh token Google non riuscito: {e}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .map_err(|e| format!("Risposta Google non leggibile: {e}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "Google non ha aggiornato il token ({status}): {body}"
+        ));
+    }
+    let mut refreshed: GoogleTokenResponse =
+        serde_json::from_str(&body).map_err(|e| format!("Token Google non leggibile: {e}"))?;
+    refreshed.refresh_token = current.refresh_token.clone();
+    save_google_token(&refreshed)?;
+    Ok(refreshed)
+}
+
+fn drive_escape(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+fn drive_get_or_create_folder(
+    client: &reqwest::blocking::Client,
+    access_token: &str,
+    name: &str,
+    parent: Option<&str>,
+) -> Result<String, String> {
+    let mut q = format!(
+        "mimeType='application/vnd.google-apps.folder' and trashed=false and name='{}'",
+        drive_escape(name)
+    );
+    if let Some(parent_id) = parent {
+        q.push_str(&format!(" and '{}' in parents", drive_escape(parent_id)));
+    }
+    let list = client
+        .get("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(access_token)
+        .query(&[
+            ("q", q.as_str()),
+            ("spaces", "drive"),
+            ("fields", "files(id,name)"),
+            ("pageSize", "1"),
+        ])
+        .send()
+        .map_err(|e| format!("Ricerca cartella Drive non riuscita: {e}"))?;
+    let status = list.status();
+    let body = list
+        .text()
+        .map_err(|e| format!("Risposta Drive non leggibile: {e}"))?;
+    if !status.is_success() {
+        return Err(format!("Ricerca cartella Drive fallita ({status}): {body}"));
+    }
+    let parsed: GoogleDriveListResponse =
+        serde_json::from_str(&body).map_err(|e| format!("Elenco Drive non leggibile: {e}"))?;
+    if let Some(folder) = parsed.files.first() {
+        return Ok(folder.id.clone());
+    }
+    let mut metadata = serde_json::json!({
+        "name": name,
+        "mimeType": "application/vnd.google-apps.folder"
+    });
+    if let Some(parent_id) = parent {
+        metadata["parents"] = serde_json::json!([parent_id]);
+    }
+    let created = client
+        .post("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(access_token)
+        .query(&[("fields", "id,name")])
+        .json(&metadata)
+        .send()
+        .map_err(|e| format!("Creazione cartella Drive non riuscita: {e}"))?;
+    let status = created.status();
+    let body = created
+        .text()
+        .map_err(|e| format!("Risposta Drive non leggibile: {e}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "Creazione cartella Drive fallita ({status}): {body}"
+        ));
+    }
+    let folder: GoogleDriveFile =
+        serde_json::from_str(&body).map_err(|e| format!("Cartella Drive non leggibile: {e}"))?;
+    Ok(folder.id)
+}
+
+fn drive_upload_file_with_token(
+    access_token: &str,
+    file_path: &str,
+) -> Result<GoogleDriveUploadResult, String> {
+    let path = std::path::PathBuf::from(file_path);
+    if !path.exists() {
+        return Err("File backup da caricare non trovato.".into());
+    }
+    if path.extension().and_then(|x| x.to_str()) != Some("gimbackup") {
+        return Err("Per il backup online carico solo file cifrati .gimbackup.".into());
+    }
+    let file_name = path
+        .file_name()
+        .and_then(|x| x.to_str())
+        .ok_or("Nome file backup non valido.")?
+        .to_string();
+    let parent_time = path
+        .parent()
+        .and_then(|x| x.file_name())
+        .and_then(|x| x.to_str())
+        .unwrap_or("manuale")
+        .to_string();
+    let fallback_date = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let parent_date = path
+        .parent()
+        .and_then(|x| x.parent())
+        .and_then(|x| x.file_name())
+        .and_then(|x| x.to_str())
+        .unwrap_or(&fallback_date)
+        .to_string();
+    let client = reqwest::blocking::Client::new();
+    let root =
+        drive_get_or_create_folder(&client, access_token, "Gestionale Intenzioni Messe", None)?;
+    let backup = drive_get_or_create_folder(&client, access_token, "Backup", Some(&root))?;
+    let day = drive_get_or_create_folder(&client, access_token, &parent_date, Some(&backup))?;
+    let hour = drive_get_or_create_folder(&client, access_token, &parent_time, Some(&day))?;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let metadata = serde_json::json!({
+        "name": file_name,
+        "parents": [hour],
+        "mimeType": "application/octet-stream"
+    });
+    let boundary = format!("gim-{}", random_hex(16));
+    let mut body = Vec::new();
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{}\r\n",
+            metadata
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(
+        format!("--{boundary}\r\nContent-Type: application/octet-stream\r\n\r\n").as_bytes(),
+    );
+    body.extend_from_slice(&bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    let uploaded = client
+        .post("https://www.googleapis.com/upload/drive/v3/files")
+        .bearer_auth(access_token)
+        .query(&[
+            ("uploadType", "multipart"),
+            ("fields", "id,name,webViewLink"),
+        ])
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            format!("multipart/related; boundary={boundary}"),
+        )
+        .body(body)
+        .send()
+        .map_err(|e| format!("Upload Google Drive non riuscito: {e}"))?;
+    let status = uploaded.status();
+    let body = uploaded
+        .text()
+        .map_err(|e| format!("Risposta upload Drive non leggibile: {e}"))?;
+    if !status.is_success() {
+        return Err(format!("Upload Google Drive fallito ({status}): {body}"));
+    }
+    let file: GoogleDriveFile =
+        serde_json::from_str(&body).map_err(|e| format!("File Drive non leggibile: {e}"))?;
+    Ok(GoogleDriveUploadResult {
+        id: file.id,
+        name: file.name,
+        web_view_link: file.web_view_link,
+        folder_path: format!(
+            "Gestionale Intenzioni Messe/Backup/{}/{}",
+            parent_date, parent_time
+        ),
     })
 }
 
@@ -310,6 +552,23 @@ fn connect_google_drive(
     })
 }
 
+#[tauri::command]
+fn upload_google_drive_backup(
+    file_path: String,
+    client_id: String,
+    client_secret: String,
+) -> Result<GoogleDriveUploadResult, String> {
+    let token = google_token_from_keyring()?;
+    match drive_upload_file_with_token(&token.access_token, &file_path) {
+        Ok(result) => Ok(result),
+        Err(err) if err.contains("401") || err.contains("Unauthorized") => {
+            let refreshed = refresh_google_token(&token, client_id.trim(), client_secret.trim())?;
+            drive_upload_file_with_token(&refreshed.access_token, &file_path)
+        }
+        Err(err) => Err(err),
+    }
+}
+
 fn collect_sqlite_files(folder: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
     let Ok(entries) = std::fs::read_dir(folder) else {
         return;
@@ -457,8 +716,46 @@ pub fn run() {
             export_archive_csv,
             restore_latest_backup,
             has_google_drive_token,
-            connect_google_drive
+            connect_google_drive,
+            upload_google_drive_backup
         ])
         .run(tauri::generate_context!())
         .expect("errore durante l'avvio dell'applicazione");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn google_drive_live_upload_encrypted_backup() {
+        let client_id = std::env::var("VITE_GOOGLE_DRIVE_CLIENT_ID")
+            .expect("VITE_GOOGLE_DRIVE_CLIENT_ID mancante");
+        let client_secret = std::env::var("VITE_GOOGLE_DRIVE_CLIENT_SECRET").unwrap_or_default();
+        let now = chrono::Local::now();
+        let folder = std::env::temp_dir()
+            .join("Gestionale Intenzioni Messe")
+            .join("Backup")
+            .join(now.format("%Y-%m-%d").to_string())
+            .join(now.format("%H-%M").to_string());
+        std::fs::create_dir_all(&folder).expect("cartella test non creata");
+        let file = folder.join(format!(
+            "test-verifica-upload-drive-{}.gimbackup",
+            now.format("%Y-%m-%d-%H-%M-%S")
+        ));
+        std::fs::write(&file, b"GIMBKP1-live-test").expect("file test non creato");
+        let uploaded =
+            upload_google_drive_backup(file.display().to_string(), client_id, client_secret)
+                .expect("upload Google Drive non riuscito");
+        assert!(!uploaded.id.is_empty());
+        assert!(uploaded.name.ends_with(".gimbackup"));
+        assert!(uploaded
+            .folder_path
+            .contains("Gestionale Intenzioni Messe/Backup"));
+        println!(
+            "Upload Drive verificato: {} in {}",
+            uploaded.name, uploaded.folder_path
+        );
+    }
 }

@@ -16,7 +16,9 @@ describe("stile backup online",()=>{
     expect(app).toContain("Attivo");
     expect(app).toContain("Configurazione Google rilevata");
     expect(app).toContain("connect_google_drive");
+    expect(app).toContain("upload_google_drive_backup");
     expect(app).toContain("Google Drive collegato");
+    expect(app).toContain("Crea backup cifrato e carica su Drive");
     expect(app).not.toContain("Prossimo step tecnico");
   });
 });
