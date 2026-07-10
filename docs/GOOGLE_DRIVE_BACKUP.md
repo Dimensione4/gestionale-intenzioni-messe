@@ -20,6 +20,8 @@ il gestionale deve caricare su Google Drive solo backup cifrati (`.gimbackup`).
 9. Crea **OAuth client ID**.
 10. Application type: **Desktop app**.
 11. Copia il **Client ID**.
+12. Se Google mostra anche un **Client secret**, copialo: alcuni client Desktop
+    lo richiedono durante lo scambio del token.
 
 Per app desktop non devi chiedere al prete la password Gmail: si apre il browser,
 lui autorizza Google e il gestionale riceve un token OAuth.
@@ -36,10 +38,14 @@ Poi inserisci:
 
 ```env
 VITE_GOOGLE_DRIVE_CLIENT_ID=IL_TUO_CLIENT_ID.apps.googleusercontent.com
+VITE_GOOGLE_DRIVE_CLIENT_SECRET=IL_TUO_CLIENT_SECRET_SE_RICHIESTO
 VITE_GOOGLE_DRIVE_SCOPE=https://www.googleapis.com/auth/drive.file
 ```
 
 `.env` non deve essere committato.
+
+Se durante il collegamento compare `client_secret is missing`, aggiungi
+`VITE_GOOGLE_DRIVE_CLIENT_SECRET`, riavvia `npm run tauri dev` e riprova.
 
 ## Scope consigliato
 
@@ -65,7 +71,7 @@ comoda per l'utente perché i file non sono visibili normalmente in Drive.
 
 - refresh token;
 - access token;
-- client secret;
+- client secret reale nel repository pubblico;
 - database `.sqlite`;
 - backup `.gimbackup` reali;
 - chiavi private Tauri.
@@ -77,12 +83,13 @@ Il gestionale oggi ha:
 - preferenze UI per attivare il backup online;
 - backup locale automatico;
 - generazione backup cifrato `.gimbackup`;
-- campo email Google Drive.
+- campo email Google Drive;
+- collegamento OAuth Google Drive via browser;
+- salvataggio token nel keyring di Windows.
 
-Il prossimo step tecnico è implementare il flusso OAuth:
+Il prossimo step tecnico è usare il token salvato per caricare i backup cifrati:
 
-1. aprire browser esterno con URL Google OAuth;
-2. ricevere il callback tramite loopback locale;
-3. salvare refresh token nel keyring di Windows;
-4. caricare il file `.gimbackup` su Drive;
-5. mostrare data/ora dell'ultimo backup online riuscito.
+1. recuperare o aggiornare access token dal refresh token;
+2. creare una cartella Drive dedicata;
+3. caricare il file `.gimbackup` su Drive;
+4. mostrare data/ora dell'ultimo backup online riuscito.

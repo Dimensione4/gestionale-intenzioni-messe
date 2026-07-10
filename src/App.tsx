@@ -430,6 +430,7 @@ function BackupSettings(){
   const [message,setMessage]=useState(""),[restore,setRestore]=useState(false),[backupSettings,setBackupSettings]=useState<ParishSettings|null>(null),[encryptPassphrase,setEncryptPassphrase]=useState("");
   const [driveConnection,setDriveConnection]=useState<GoogleDriveConnection|null>(null),[driveConnecting,setDriveConnecting]=useState(false);
   const googleDriveClientId=import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID?.trim()??"";
+  const googleDriveClientSecret=import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_SECRET?.trim()??"";
   const googleDriveScope=import.meta.env.VITE_GOOGLE_DRIVE_SCOPE?.trim()||"https://www.googleapis.com/auth/drive.file";
   const googleDriveConfigured=Boolean(googleDriveClientId);
   useEffect(()=>{loadSettings().then(setBackupSettings)},[]);
@@ -445,7 +446,7 @@ function BackupSettings(){
     setDriveConnecting(true);
     try{
       await saveSettings(backupSettings);
-      const connection=await invoke<GoogleDriveConnection>("connect_google_drive",{clientId:googleDriveClientId,scope:googleDriveScope,accountEmail:backupSettings.online_backup_account_email??""});
+      const connection=await invoke<GoogleDriveConnection>("connect_google_drive",{clientId:googleDriveClientId,clientSecret:googleDriveClientSecret,scope:googleDriveScope,accountEmail:backupSettings.online_backup_account_email??""});
       setDriveConnection(connection);
       setMessage(connection.message);
     }catch(e){setMessage(`Errore Google Drive: ${String(e)}`)}

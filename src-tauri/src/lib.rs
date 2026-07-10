@@ -239,6 +239,7 @@ fn has_google_drive_token() -> GoogleDriveConnection {
 #[tauri::command]
 fn connect_google_drive(
     client_id: String,
+    client_secret: String,
     scope: String,
     account_email: String,
 ) -> Result<GoogleDriveConnection, String> {
@@ -268,15 +269,20 @@ fn connect_google_drive(
     open::that(auth_url).map_err(|e| format!("Non riesco ad aprire il browser: {e}"))?;
     let code = wait_for_google_callback(listener, &state)?;
     let client = reqwest::blocking::Client::new();
+    let mut form = vec![
+        ("client_id", client_id.as_str()),
+        ("code", code.as_str()),
+        ("code_verifier", code_verifier.as_str()),
+        ("grant_type", "authorization_code"),
+        ("redirect_uri", redirect_uri.as_str()),
+    ];
+    let client_secret = client_secret.trim().to_string();
+    if !client_secret.is_empty() {
+        form.push(("client_secret", client_secret.as_str()));
+    }
     let response = client
         .post("https://oauth2.googleapis.com/token")
-        .form(&[
-            ("client_id", client_id.as_str()),
-            ("code", code.as_str()),
-            ("code_verifier", code_verifier.as_str()),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", redirect_uri.as_str()),
-        ])
+        .form(&form)
         .send()
         .map_err(|e| format!("Scambio token Google non riuscito: {e}"))?;
     let status = response.status();
@@ -284,6 +290,9 @@ fn connect_google_drive(
         .text()
         .map_err(|e| format!("Risposta Google non leggibile: {e}"))?;
     if !status.is_success() {
+        if body.contains("client_secret is missing") {
+            return Err("Google richiede anche il Client Secret per questo OAuth client. Aggiungi VITE_GOOGLE_DRIVE_CLIENT_SECRET nel file .env usando il valore del client Desktop Google Cloud, riavvia l'app e riprova.".into());
+        }
         return Err(format!(
             "Google non ha rilasciato il token ({status}): {body}"
         ));
