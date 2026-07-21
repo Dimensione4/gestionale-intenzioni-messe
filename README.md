@@ -8,6 +8,7 @@ Applicazione desktop Windows locale per gestire calendario delle messe, intenzio
 
 - calendario mensile e vista elenco delle intenzioni;
 - dettaglio giornata con fasce orarie, modifica ed eliminazione ripristinabile;
+- promemoria cumulativo per più messe richieste dallo stesso offerente;
 - ricevute numerate con anteprima e stampa termica `58mm`/`80mm`;
 - archivio storico, cestino e log modifiche;
 - impostazioni parrocchia, sacerdote, colori, logo e orari standard;
@@ -36,14 +37,14 @@ https://github.com/Dimensione4/gestionale-intenzioni-messe/releases/latest
 Per il prete, il file consigliato è l'installer `.exe`:
 
 ```text
-Gestionale.Intenzioni.Messe_0.1.5_x64-setup.exe
+Gestionale.Intenzioni.Messe_0.1.6_x64-setup.exe
 ```
 
 In alternativa:
 
 1. Copia su chiavetta uno dei file generati nella cartella `src-tauri/target/release/bundle/`:
-   - `nsis/Gestionale Intenzioni Messe_0.1.5_x64-setup.exe`, consigliato per l'installazione guidata;
-   - `msi/Gestionale Intenzioni Messe_0.1.5_x64_en-US.msi`, utile in ambienti Windows gestiti.
+   - `nsis/Gestionale Intenzioni Messe_0.1.6_x64-setup.exe`, consigliato per l'installazione guidata;
+   - `msi/Gestionale Intenzioni Messe_0.1.6_x64_en-US.msi`, utile in ambienti Windows gestiti.
 2. Sul PC della parrocchia apri il file `.exe` o `.msi` e completa l'installazione.
 3. Al primo avvio crea la password amministratore.
 4. Entra in **Impostazioni** e compila i dati della parrocchia, gli orari standard delle messe e il formato ricevuta `58mm` o `80mm`.
@@ -96,7 +97,7 @@ npm run tauri build
 src-tauri\target\release\bundle\nsis
 ```
 
-3. Copia su chiavetta il file `Gestionale Intenzioni Messe_0.1.5_x64-setup.exe`.
+3. Copia su chiavetta il file `Gestionale Intenzioni Messe_0.1.6_x64-setup.exe`.
 4. Sul PC del prete fai doppio clic sul file copiato.
 5. Se Windows mostra un avviso di protezione, scegli **Ulteriori informazioni** e poi **Esegui comunque**, se il file arriva da te.
 6. Dopo l'installazione apri il gestionale, crea la password e configura parrocchia, orari e ricevute.
@@ -106,8 +107,9 @@ src-tauri\target\release\bundle\nsis
 1. Apri **Calendario** e seleziona il giorno desiderato, oppure usa **Aggiungi intenzione**.
 2. Inserisci data, ora, testo, persona ricordata e offerta, quindi premi **Salva intenzione**.
 3. Nel giorno scelto appariranno ora e testo dell'intenzione. La ricevuta viene numerata automaticamente.
-4. Apri **Archivio** per cercare, esportare, ristampare, annullare una ricevuta o ripristinare intenzioni eliminate.
-5. In **Impostazioni -> Configuratore ricevuta** scegli quali informazioni stampare sul bollettino.
+4. Se una persona chiede più messe in date diverse, usa **Nuovo promemoria** dal Calendario: ogni riga viene salvata come intenzione vera nella sua data e puoi stampare un unico pro-memoria riepilogativo.
+5. Apri **Archivio** per cercare, esportare, ristampare, annullare una ricevuta o ripristinare intenzioni eliminate.
+6. In **Impostazioni -> Configuratore ricevuta** scegli quali informazioni stampare sul bollettino.
 
 ## Stampa ricevute
 

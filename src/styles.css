@@ -231,6 +231,22 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .print-report h1 { color: #000; font: 700 24px Arial, sans-serif; }
 .print-report table { width: 100%; border-collapse: collapse; }
 .print-report th, .print-report td { padding: 8px; border: 1px solid #888; text-align: left; }
+.memo-dialog { width: min(1180px, 96vw); }
+.memo-rows { display: grid; gap: 10px; margin: 18px 0; }
+.memo-rows-head, .memo-row { display: grid; grid-template-columns: 155px 115px minmax(190px, 1fr) minmax(160px, .8fr) auto; gap: 10px; align-items: center; }
+.memo-rows-head { color: var(--muted); font-size: 14px; font-weight: 800; }
+.memo-row { padding: 12px; background: #f8fbfd; border: 1px solid var(--border); border-radius: 10px; }
+.memo-row textarea { grid-column: 3 / 5; min-height: 74px; }
+.memo-row .danger-ghost { color: var(--danger); border-color: #d7a4a7; background: #fff; }
+.memo-print { color: #111; background: #fff; }
+.memo-print header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #111; }
+.memo-print header svg { width: 42px; height: 42px; }
+.memo-print header div { display: grid; }
+.memo-print header span { font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.memo-print header strong { font-size: 22px; }
+.memo-print table { width: 100%; border-collapse: collapse; font: 15px Arial, sans-serif; }
+.memo-print th, .memo-print td { padding: 10px; border: 1px solid #333; text-align: left; vertical-align: top; }
+.memo-print th { background: #f1f1f1; text-transform: uppercase; font-size: 13px; }
 @media (max-width: 1100px) {
   .shell { grid-template-columns: 230px minmax(0, 1fr); }
   .settings-layout { grid-template-columns: 1fr; }
@@ -240,6 +256,9 @@ section > header { display: flex; justify-content: space-between; align-items: c
   .monthly-list-head, .monthly-list > button { grid-template-columns: 135px 70px minmax(200px, 1fr) 110px; font-size: 16px; }
   .archive-filters { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
   .backup-grid { grid-template-columns: 1fr; }
+  .memo-rows-head { display: none; }
+  .memo-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .memo-row textarea { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; }
