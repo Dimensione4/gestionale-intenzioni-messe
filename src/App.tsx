@@ -208,34 +208,31 @@ const emptyMemoRow=():MemoRow=>({mass_date:"",mass_time:"18:00",remembered_perso
 
 function MassMemoDialog({repository,close,saved,initialMemo}:{repository:IntentionRepository;close:()=>void;saved:(memo:MassMemo)=>void;initialMemo?:MassMemo}){
   const [offererFirst,setOffererFirst]=useState(initialMemo?.offerer_first_name??""),[offererLast,setOffererLast]=useState(initialMemo?.offerer_last_name??""),[offererPhone,setOffererPhone]=useState(initialMemo?.offerer_phone??""),[offering,setOffering]=useState(initialMemo?.offering_cents??1500),[payment,setPayment]=useState(initialMemo?.payment_method??"Contanti");
-  const [hasOffering,setHasOffering]=useState(!initialMemo||initialMemo.offering_cents>0),[rows,setRows]=useState<MemoRow[]>(initialMemo?initialMemo.items.map(item=>({mass_date:item.mass_date,mass_time:item.mass_time,remembered_person:item.remembered_person,intention_text:item.intention_text,internal_notes:item.internal_notes})):[{...emptyMemoRow()},{...emptyMemoRow()},{...emptyMemoRow()}]),[maximum,setMaximum]=useState(3),[saving,setSaving]=useState(false),[error,setError]=useState(""),[created,setCreated]=useState<MassMemo|null>(null);
+  const [hasOffering,setHasOffering]=useState(!initialMemo||initialMemo.offering_cents>0),[rows,setRows]=useState<MemoRow[]>(initialMemo?initialMemo.items.map(item=>({mass_date:item.mass_date,mass_time:item.mass_time,remembered_person:item.remembered_person,intention_text:item.intention_text,internal_notes:item.internal_notes})):[{...emptyMemoRow()},{...emptyMemoRow()},{...emptyMemoRow()}]),[maximum,setMaximum]=useState(3),[saving,setSaving]=useState(false),[error,setError]=useState(""),[created,setCreated]=useState<MassMemo|null>(null),[previewValues,setPreviewValues]=useState<NewIntention[]|null>(null);
   useEffect(()=>{repository.settings().then(settings=>{setMaximum(settings.max_intentions_per_mass);if(!initialMemo)setOffering(settings.default_offering_cents)})},[repository,initialMemo]);
   const updateRow=(index:number,key:keyof MemoRow,value:string)=>setRows(current=>current.map((row,i)=>i===index?{...row,[key]:value}:row));
   const removeRow=(index:number)=>setRows(current=>current.filter((_,i)=>i!==index));
-  async function submit(e:React.FormEvent){
-    e.preventDefault();setError("");
-    const filled=rows.filter(row=>row.mass_date&&row.mass_time&&(row.remembered_person.trim()||row.intention_text.trim()));
-    if(!offererFirst.trim()&&!offererLast.trim())return setError("Indica almeno nome o cognome dell'offerente.");
-    if(filled.length===0)return setError("Aggiungi almeno una messa con data, ora e persona ricordata o intenzione.");
-    setSaving(true);
-    try{
-      const values=filled.map(row=>({
-          mass_date:row.mass_date,
-          mass_time:row.mass_time,
-          offerer_first_name:offererFirst,
-          offerer_last_name:offererLast,
-          offerer_phone:offererPhone,
-          remembered_person:row.remembered_person,
-          intention_text:row.intention_text||`A ricordo di ${row.remembered_person}`,
-          offering_cents:hasOffering?offering:0,
-          payment_method:payment,
-          internal_notes:row.internal_notes,
-        }));
-      setCreated(initialMemo?await updateMassMemo(initialMemo,values,maximum):await (repository.createMemo??createMassMemo)(values,maximum));
-    }catch(e){setError(typeof e==="string"?e:e instanceof Error?e.message:"Salvataggio del promemoria non riuscito.")}
+  const rowHasData=(row:MemoRow)=>Boolean(row.mass_date||row.mass_time!=="18:00"||row.remembered_person.trim()||row.intention_text.trim()||row.internal_notes.trim());
+  const valuesFromRows=()=>rows.filter(rowHasData).map(row=>({mass_date:row.mass_date,mass_time:row.mass_time,offerer_first_name:offererFirst,offerer_last_name:offererLast,offerer_phone:offererPhone,remembered_person:row.remembered_person.trim(),intention_text:row.intention_text.trim()||`A ricordo di ${row.remembered_person.trim()}`,offering_cents:hasOffering?offering:0,payment_method:payment,internal_notes:row.internal_notes}));
+  const memoFromValues=(values:NewIntention[]):MassMemo=>({id:initialMemo?.id??0,offerer_first_name:offererFirst,offerer_last_name:offererLast,offerer_phone:offererPhone,offering_cents:hasOffering?offering:0,payment_method:payment,status:initialMemo?.status??"draft",created_at:initialMemo?.created_at??"",updated_at:initialMemo?.updated_at??"",items:values.map((value,index)=>({id:initialMemo?.items[index]?.id??-(index+1),...value,status:"active",receipt_number:initialMemo?.items[index]?.receipt_number??null,receipt_status:initialMemo?.items[index]?.receipt_status??null}))});
+  async function savePreview(){
+    if(!previewValues)return;
+    setSaving(true);setError("");
+    try{setCreated(initialMemo?await updateMassMemo(initialMemo,previewValues,maximum):await (repository.createMemo??createMassMemo)(previewValues,maximum));setPreviewValues(null)}
+    catch(e){setError(typeof e==="string"?e:e instanceof Error?e.message:"Salvataggio del promemoria non riuscito.")}
     finally{setSaving(false)}
   }
+  async function submit(e:React.FormEvent){
+    e.preventDefault();setError("");
+    const filledRows=rows.filter(rowHasData);
+    if(!offererFirst.trim()&&!offererLast.trim())return setError("Indica almeno nome o cognome dell'offerente.");
+    if(filledRows.length===0)return setError("Aggiungi almeno una messa con data, ora e persona ricordata.");
+    const invalidIndex=filledRows.findIndex(row=>!row.mass_date||!row.mass_time||!row.remembered_person.trim());
+    if(invalidIndex>=0)return setError(`Completa la riga ${rows.indexOf(filledRows[invalidIndex])+1}: servono data, ora e persona ricordata.`);
+    setPreviewValues(valuesFromRows());
+  }
   if(created)return <MassMemoPreview memo={created} close={()=>saved(created)}/>;
+  if(previewValues)return <MassMemoPreview memo={memoFromValues(previewValues)} back={()=>setPreviewValues(null)} close={()=>setPreviewValues(null)} confirm={savePreview} saving={saving} error={error}/>;
   return <div className="modal-backdrop"><div className="dialog memo-dialog" role="dialog" aria-modal="true" aria-labelledby="memo-title">
     <div className="dialog-head"><div><p className="eyebrow">Inserimento multiplo</p><h2 id="memo-title">{initialMemo?"Modifica promemoria":"Nuovo promemoria celebrazione S. Messa"}</h2></div><button type="button" onClick={close}>Chiudi ×</button></div>
     <form onSubmit={submit}><p className="page-subtitle">Ogni riga verrà salvata come intenzione reale nella data corretta del calendario.</p><div className="form-grid">
@@ -252,7 +249,7 @@ function MassMemoDialog({repository,close,saved,initialMemo}:{repository:Intenti
       <textarea aria-label={`Testo intenzione riga ${index+1}`} value={row.intention_text} onChange={e=>updateRow(index,"intention_text",e.target.value)} placeholder="Testo intenzione facoltativo, es. Per i defunti della famiglia" />
     </div>)}</div>
     <button type="button" className="secondary-button" onClick={()=>setRows(current=>[...current,emptyMemoRow()])}><Plus/> Aggiungi riga</button>
-    {error&&<p className="error" role="alert">{error}</p>}<div className="actions memo-actions"><button type="button" onClick={close}>Annulla</button><button className="primary" disabled={saving}><Save/> {saving?"Salvataggio…":"Salva promemoria e inserisci nel calendario"}</button></div></form>
+    {error&&<p className="error" role="alert">{error}</p>}<div className="actions memo-actions"><button type="button" onClick={close}>Annulla</button><button className="primary" disabled={saving}><Save/> Controlla promemoria</button></div></form>
   </div></div>;
 }
 
@@ -261,7 +258,7 @@ export function memoPrintTitle(records:Pick<MassIntention,"mass_date">[],offerer
   return `Promemoria messe - ${offerer||"offerente"} - ${firstDate}`.replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
 }
 
-function MassMemoPreview({memo,close}:{memo:MassMemo;close:()=>void}){
+function MassMemoPreview({memo,close,back,confirm,saving=false,error=""}:{memo:MassMemo;close:()=>void;back?:()=>void;confirm?:()=>void|Promise<void>;saving?:boolean;error?:string}){
   const records=memo.items,offerer=`${memo.offerer_first_name} ${memo.offerer_last_name}`.trim(),phone=memo.offerer_phone;
   const [printFormat,setPrintFormat]=useState<PrintFormat>("a4"),[showOffering,setShowOffering]=useState(memo.offering_cents>0);
   function printMemo(){
@@ -276,7 +273,8 @@ function MassMemoPreview({memo,close}:{memo:MassMemo;close:()=>void}){
     <div className="dialog-head no-print"><div><p className="eyebrow">Documento</p><h2 id="memo-preview-title">Promemoria pronto</h2></div></div>
     <div className="print-options memo-print-options no-print"><fieldset><legend>Formato stampa</legend><label><input type="radio" checked={printFormat==="a4"} onChange={()=>setPrintFormat("a4")}/> Foglio A4</label><label><input type="radio" checked={printFormat==="thermal"} onChange={()=>setPrintFormat("thermal")}/> Stampantina 80 mm</label></fieldset><label className="check-field"><input type="checkbox" checked={showOffering} onChange={e=>setShowOffering(e.target.checked)}/> Mostra quota/offerta</label></div>
     <div className={`memo-print ${printFormat}`}><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table className={showOffering?"with-offering":""}><colgroup><col className="memo-date-col"/><col className="memo-time-col"/><col className="memo-person-col"/><col className="memo-notes-col"/>{showOffering&&<col className="memo-offering-col"/>}</colgroup><thead><tr><th>{printFormat==="thermal"?"Data":"Giorno"}</th><th>Ora</th><th>{printFormat==="thermal"?"Ricordo":"A ricordo di…"}</th><th>Note</th>{showOffering&&<th>Quota</th>}</tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td>{showOffering&&<td>€ {(record.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table></div>
-    <div className="actions memo-actions no-print"><button className="secondary-button" onClick={close}>Chiudi</button><button className="primary" onClick={printMemo}><Printer/> Stampa promemoria</button></div></div></div>;
+    {error&&<p className="error no-print" role="alert">{error}</p>}
+    <div className="actions memo-actions no-print">{back&&<button className="secondary-button" onClick={back}><ArrowLeft/> Indietro e modifica</button>}{confirm?<button className="primary" disabled={saving} onClick={confirm}><Save/> {saving?"Salvataggio…":"Conferma e salva"}</button>:<><button className="secondary-button" onClick={close}>Chiudi</button><button className="primary" onClick={printMemo}><Printer/> Stampa promemoria</button></>}</div></div></div>;
 }
 
 type MemoRepository={list:typeof loadMassMemos;remove:typeof deleteMassMemo};
@@ -363,13 +361,13 @@ function IntentionDialog({initialDate,initialTime,initialRecord,repository,close
   const [maximum,setMaximum]=useState(3),[error,setError]=useState(""),[saving,setSaving]=useState(false);
   useEffect(()=>{repository.settings().then(s=>{setMaximum(s.max_intentions_per_mass);setForm(v=>({...v,offering_cents:s.default_offering_cents}))})},[repository]);
   const field=(key:keyof NewIntention,value:string|number)=>setForm({...form,[key]:value});
-  async function submit(e:React.FormEvent){e.preventDefault();setError("");if(!form.intention_text.trim()&&!form.offerer_first_name.trim())return setError("Scrivi il testo dell’intenzione oppure il nome dell’offerente.");if(!form.intention_text.trim()&&!confirm("Il testo dell’intenzione è vuoto. Vuoi continuare?"))return;if(form.offering_cents===0&&!confirm("L’offerta è pari a zero. Vuoi continuare?"))return;setSaving(true);try{if(initialRecord){await (repository.update??updateIntention)(initialRecord.id,form);saved({...initialRecord,...form})}else saved(await repository.create(form,maximum))}catch(e){setError(typeof e==="string"?e:e instanceof Error?e.message:"Salvataggio non riuscito.")}finally{setSaving(false)}}
+  async function submit(e:React.FormEvent){e.preventDefault();setError("");if(!form.remembered_person.trim())return setError("Indica la persona o famiglia da ricordare.");if(!form.intention_text.trim())field("intention_text",`A ricordo di ${form.remembered_person.trim()}`);if(form.offering_cents===0&&!confirm("L’offerta è pari a zero. Vuoi continuare?"))return;setSaving(true);try{const value={...form,intention_text:form.intention_text.trim()||`A ricordo di ${form.remembered_person.trim()}`,remembered_person:form.remembered_person.trim()};if(initialRecord){await (repository.update??updateIntention)(initialRecord.id,value);saved({...initialRecord,...value})}else saved(await repository.create(value,maximum))}catch(e){setError(typeof e==="string"?e:e instanceof Error?e.message:"Salvataggio non riuscito.")}finally{setSaving(false)}}
   return <div className="modal-backdrop"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="intention-title">
     <div className="dialog-head"><div><p className="eyebrow">{initialRecord?"Modifica":"Inserimento"}</p><h2 id="intention-title">{initialRecord?"Modifica intenzione":"Nuova intenzione"}</h2></div><button type="button" onClick={close}>Chiudi ×</button></div>
     <form onSubmit={submit}><div className="form-grid">
       <label>Data messa<input required type="date" value={form.mass_date} onChange={e=>field("mass_date",e.target.value)}/></label><label>Orario messa<input required type="time" value={form.mass_time} onChange={e=>field("mass_time",e.target.value)}/></label>
       <label>Nome offerente<input value={form.offerer_first_name} onChange={e=>field("offerer_first_name",e.target.value)}/></label><label>Cognome offerente<input value={form.offerer_last_name} onChange={e=>field("offerer_last_name",e.target.value)}/></label>
-      <label>Telefono (facoltativo)<input value={form.offerer_phone} onChange={e=>field("offerer_phone",e.target.value)}/></label><label>Persona ricordata<input value={form.remembered_person} onChange={e=>field("remembered_person",e.target.value)}/></label>
+      <label>Telefono (facoltativo)<input value={form.offerer_phone} onChange={e=>field("offerer_phone",e.target.value)}/></label><label>Persona ricordata<input required value={form.remembered_person} onChange={e=>field("remembered_person",e.target.value)}/></label>
       <label className="wide">Testo intenzione<textarea rows={3} value={form.intention_text} onChange={e=>field("intention_text",e.target.value)}/></label>
       <label>Offerta (€)<input required type="number" min="0" step=".01" value={form.offering_cents/100} onChange={e=>field("offering_cents",Math.round(+e.target.value*100))}/></label>
       <label>Pagamento<select value={form.payment_method} onChange={e=>field("payment_method",e.target.value)}><option>Contanti</option><option>Bonifico</option><option>Altro</option></select></label>

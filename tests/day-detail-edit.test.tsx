@@ -17,7 +17,7 @@ describe("dettaglio giornata", () => {
     let record: MassIntention = {
       id: 1, mass_date: date, mass_time: "18:00", offerer_first_name: "Mario",
       offerer_last_name: "Rossi", offerer_phone: "", intention_text: "Prima intenzione",
-      remembered_person: "", offering_cents: 1500, payment_method: "Contanti",
+      remembered_person: "Prima persona", offering_cents: 1500, payment_method: "Contanti",
       internal_notes: "", status: "active", receipt_number: 1, receipt_status: "valid",
     };
     const update = vi.fn(async (_id: number, value: NewIntention) => { record = { ...record, ...value }; });
@@ -48,7 +48,7 @@ describe("dettaglio giornata", () => {
     const record: MassIntention = {
       id: 1, mass_date: date, mass_time: "18:00", offerer_first_name: "",
       offerer_last_name: "", offerer_phone: "", intention_text: "Da eliminare",
-      remembered_person: "", offering_cents: 1500, payment_method: "Contanti",
+      remembered_person: "Persona da eliminare", offering_cents: 1500, payment_method: "Contanti",
       internal_notes: "", status: "active", receipt_number: 1,
     };
     const repository = {

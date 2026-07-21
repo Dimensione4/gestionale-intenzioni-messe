@@ -45,6 +45,15 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Gestionale Intenzioni Messe ${{ github.ref_name }}"
-          releaseBody: "Aggiornamento del gestionale. Scarica gli allegati della release oppure usa latest.json come manifest updater se il canale è raggiungibile dall'app installata."
+          releaseBody: |
+            In questa versione sono stati migliorati il controllo degli aggiornamenti e la stampa dei promemoria.
+
+            Cosa cambia:
+            - messaggio di aggiornamento piu chiaro, senza dettagli tecnici;
+            - promemoria per stampantina 80 mm piu compatto, con margini corretti;
+            - controllo dei dati prima del salvataggio, cosi ogni messa ha data, ora e persona ricordata;
+            - anteprima del promemoria prima del salvataggio definitivo, con possibilita di tornare indietro e correggere.
+
+            Per aggiornare, apri il gestionale e premi "Controlla aggiornamenti", poi "Scarica il nuovo aggiornamento".
           releaseDraft: false
           prerelease: false

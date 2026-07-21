@@ -99,6 +99,9 @@ describe("flusso intenzione dal calendario", () => {
     fireEvent.change(screen.getByLabelText(/testo intenzione/i), {
       target: { value: "Per Luigi Bianchi" },
     });
+    fireEvent.change(screen.getByLabelText(/persona ricordata/i), {
+      target: { value: "Luigi Bianchi" },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: /salva intenzione/i }),
     );

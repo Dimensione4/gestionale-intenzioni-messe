@@ -38,6 +38,9 @@ describe("diagnostica: intenzione salvata visibile nel calendario", () => {
 
     const dialog = screen.getByRole("dialog", { name: /nuova intenzione/i });
     const selectedDate = (within(dialog).getByLabelText(/data messa/i) as HTMLInputElement).value;
+    fireEvent.change(within(dialog).getByLabelText(/persona ricordata/i), {
+      target: { value: "Mario Rossi" },
+    });
     fireEvent.change(within(dialog).getByLabelText(/testo intenzione/i), {
       target: { value: "In memoria di Mario Rossi" },
     });
@@ -49,6 +52,6 @@ describe("diagnostica: intenzione salvata visibile nel calendario", () => {
     const day = Number(selectedDate.slice(-2));
     const dayBox = screen.getByRole("button", { name: new RegExp(`^${day}\\b`) });
 
-    expect(within(dayBox).getByText("In memoria di Mario Rossi")).toBeInTheDocument();
+    expect(within(dayBox).getByText("Mario Rossi")).toBeInTheDocument();
   });
 });

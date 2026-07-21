@@ -61,8 +61,13 @@ describe("promemoria celebrazione messe", () => {
     fireEvent.change(screen.getByLabelText(/giorno riga 3/i), { target: { value: "2027-11-16" } });
     fireEvent.change(screen.getByLabelText(/a ricordo di riga 3/i), { target: { value: "Luigi Verdi" } });
 
-    fireEvent.click(screen.getByRole("button", { name: /salva promemoria/i }));
+    fireEvent.click(screen.getByRole("button", { name: /controlla promemoria/i }));
 
+    expect(createMemo).not.toHaveBeenCalled();
+    const draftDialog = await screen.findByRole("dialog", { name: /promemoria pronto/i });
+    expect(draftDialog).toHaveTextContent("Famiglia Rossi");
+    expect(within(draftDialog).getByRole("button", { name: /indietro e modifica/i })).toBeInTheDocument();
+    fireEvent.click(within(draftDialog).getByRole("button", { name: /conferma e salva/i }));
     await waitFor(() => expect(createMemo).toHaveBeenCalledTimes(1));
     expect(createMemo).toHaveBeenCalledWith([
       expect.objectContaining({ mass_date: "2027-04-15", remembered_person: "Famiglia Rossi", offerer_first_name: "Don", offerer_last_name: "Giacomo" }),
@@ -71,6 +76,19 @@ describe("promemoria celebrazione messe", () => {
     ], 3);
     expect(await screen.findByRole("dialog", { name: /promemoria pronto/i })).toHaveTextContent("Famiglia Rossi");
     expect(screen.getAllByRole("button", { name: /^chiudi$/i })).toHaveLength(1);
+  });
+
+  it("blocca il promemoria quando manca la persona ricordata", async () => {
+    const createMemo = vi.fn();
+    render(<Calendar repository={{ list: vi.fn(async () => []), settings: vi.fn(async () => settings), create: vi.fn(), createMemo }} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /nuovo promemoria/i }));
+    fireEvent.change(screen.getByLabelText(/^nome offerente$/i), { target: { value: "Don" } });
+    fireEvent.change(screen.getByLabelText(/giorno riga 1/i), { target: { value: "2027-04-15" } });
+    fireEvent.click(screen.getByRole("button", { name: /controlla promemoria/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("servono data, ora e persona ricordata");
+    expect(createMemo).not.toHaveBeenCalled();
   });
 
   it("prepara un titolo PDF dinamico per il promemoria", () => {
@@ -101,7 +119,8 @@ describe("promemoria celebrazione messe", () => {
     fireEvent.click(screen.getByLabelText(/registra quota/i));
     fireEvent.change(screen.getByLabelText(/giorno riga 1/i), { target: { value: "2027-04-15" } });
     fireEvent.change(screen.getByLabelText(/a ricordo di riga 1/i), { target: { value: "Famiglia Rossi" } });
-    fireEvent.click(screen.getByRole("button", { name: /salva promemoria/i }));
+    fireEvent.click(screen.getByRole("button", { name: /controlla promemoria/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /conferma e salva/i }));
 
     await waitFor(() => expect(createMemo).toHaveBeenCalled());
     expect(createMemo.mock.calls[0][0][0]).toEqual(expect.objectContaining({ offering_cents: 0 }));
@@ -119,11 +138,11 @@ describe("promemoria celebrazione messe", () => {
     const css = readFileSync("src/styles.css", "utf8");
     const modalCss = readFileSync("src/modal.css", "utf8");
 
-    expect(css).toContain(".memo-print.thermal { width: 76mm;");
-    expect(css).toContain(".memo-print.thermal table { font-size: 8.8px;");
-    expect(css).toContain(".memo-print.thermal th { font-size: 7.4px;");
+    expect(css).toContain(".memo-print.thermal { width: 72mm;");
+    expect(css).toContain(".memo-print.thermal table { font-size: 8.2px;");
+    expect(css).toContain(".memo-print.thermal th { font-size: 6.8px;");
     expect(css).toContain(".memo-print.thermal .memo-offering-col { width: 10mm; }");
-    expect(modalCss).toContain(".memo-print.thermal { width: 76mm; }");
+    expect(modalCss).toContain(".memo-print.thermal { width: 72mm; }");
   });
 
   it("mostra storico promemoria con ristampa, modifica ed eliminazione in blocco", async () => {
