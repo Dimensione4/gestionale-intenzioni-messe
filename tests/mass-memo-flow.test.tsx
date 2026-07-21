@@ -156,7 +156,8 @@ describe("promemoria celebrazione messe", () => {
   it("mantiene la modale larga, azioni distanziate e cestino compatto", () => {
     const css = readFileSync("src/styles.css", "utf8");
 
-    expect(css).toContain(".memo-dialog { width: min(1320px, 98vw); }");
+    expect(css).toContain(".memo-dialog { width: min(1420px, 96vw); }");
+    expect(css).toContain(".memo-row > * { min-width: 0; }");
     expect(css).toContain(".memo-actions { margin-top: 28px;");
     expect(css).toContain("border-top: 3px solid");
     expect(css).toContain(".memo-remove-button");
@@ -164,5 +165,10 @@ describe("promemoria celebrazione messe", () => {
     expect(css).toContain(".month .month-prev");
     expect(css).toContain(".month .month-next");
     expect(css).toContain(".calendar-saint");
+
+    const modalCss = readFileSync("src/modal.css", "utf8");
+    expect(modalCss).toContain(".dialog { width: min(980px, 96vw);");
+    expect(modalCss).toContain("overflow-x: hidden");
+    expect(modalCss).toContain(".dialog.memo-dialog { width: min(1420px, 96vw); }");
   });
 });

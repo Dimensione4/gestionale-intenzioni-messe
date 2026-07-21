@@ -244,13 +244,15 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .thermal-list article strong { font-size: 12px; }
 .thermal-list article span { font-weight: 800; }
 .thermal-list article b { justify-self: end; }
-.memo-dialog { width: min(1320px, 98vw); }
-.memo-preview-dialog { width: min(1200px, 98vw); }
+.memo-dialog { width: min(1420px, 96vw); }
+.memo-preview-dialog { width: min(1200px, 96vw); }
 .memo-print-options { margin: 0 0 22px; }
 .memo-rows { display: grid; gap: 10px; margin: 18px 0; }
-.memo-rows-head, .memo-row { display: grid; grid-template-columns: 160px 120px minmax(250px, 1fr) minmax(200px, .85fr) 54px; gap: 12px; align-items: center; }
+.memo-rows-head, .memo-row { display: grid; grid-template-columns: minmax(150px, .75fr) minmax(115px, .55fr) minmax(220px, 1.2fr) minmax(220px, 1fr) 54px; gap: 12px; align-items: center; }
 .memo-rows-head { color: var(--muted); font-size: 14px; font-weight: 800; }
 .memo-row { padding: 12px; background: #f8fbfd; border: 1px solid var(--border); border-radius: 10px; }
+.memo-row > * { min-width: 0; }
+.memo-row input, .memo-row textarea { min-width: 0; }
 .memo-row textarea { grid-column: 3 / 5; min-height: 74px; }
 .memo-remove-button { width: 46px; height: 46px; min-height: 46px; display: inline-grid; place-items: center; padding: 0; color: var(--danger); background: #fff; border: 2px solid #d7a4a7; border-radius: 999px; }
 .memo-remove-button svg { width: 22px; height: 22px; }
