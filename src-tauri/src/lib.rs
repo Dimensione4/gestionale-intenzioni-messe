@@ -839,6 +839,8 @@ pub fn run() {
             has_password,
             set_initial_password,
             verify_password,
+            has_remembered_login,
+            clear_remembered_login,
             change_password,
             delete_account,
             new_backup_path,

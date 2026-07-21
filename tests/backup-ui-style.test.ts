@@ -29,10 +29,13 @@ describe("stile backup online",()=>{
   it("ricorda l'accesso senza salvare la password in chiaro",()=>{
     const app=readFileSync("src/App.tsx","utf8");
     const rust=readFileSync("src-tauri/src/lib.rs","utf8");
+    const handlerBlock=rust.slice(rust.indexOf("tauri::generate_handler!["));
 
     expect(app).toContain("has_remembered_login");
     expect(app).toContain("clear_remembered_login");
     expect(rust).toContain("REMEMBERED_LOGIN_USER");
     expect(rust).toContain("new_remembered_login_token");
+    expect(handlerBlock).toContain("has_remembered_login");
+    expect(handlerBlock).toContain("clear_remembered_login");
   });
 });
