@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Calendar, memoPrintTitle } from "../src/App";
 import type { NewIntention } from "../src/lib/db";
@@ -55,6 +56,7 @@ describe("promemoria celebrazione messe", () => {
     expect(create).toHaveBeenNthCalledWith(2, expect.objectContaining({ mass_date: "2027-10-12", remembered_person: "Maria Bianchi" }), 3);
     expect(create).toHaveBeenNthCalledWith(3, expect.objectContaining({ mass_date: "2027-11-16", remembered_person: "Luigi Verdi" }), 3);
     expect(await screen.findByRole("dialog", { name: /promemoria pronto/i })).toHaveTextContent("Famiglia Rossi");
+    expect(screen.getAllByRole("button", { name: /^chiudi$/i })).toHaveLength(1);
   });
 
   it("prepara un titolo PDF dinamico per il promemoria", () => {
@@ -62,5 +64,18 @@ describe("promemoria celebrazione messe", () => {
       { mass_date: "2027-11-16", offerer_first_name: "Don", offerer_last_name: "Giacomo" },
       { mass_date: "2027-04-15", offerer_first_name: "Don", offerer_last_name: "Giacomo" },
     ], "Don Giacomo")).toBe("Promemoria messe - Don Giacomo - 2027-04-15");
+  });
+
+  it("mantiene la modale larga, azioni distanziate e cestino compatto", () => {
+    const css = readFileSync("src/styles.css", "utf8");
+
+    expect(css).toContain(".memo-dialog { width: min(1320px, 98vw); }");
+    expect(css).toContain(".memo-actions { margin-top: 28px;");
+    expect(css).toContain("border-top: 3px solid");
+    expect(css).toContain(".memo-remove-button");
+    expect(css).toContain("border-radius: 999px");
+    expect(css).toContain(".month .month-prev");
+    expect(css).toContain(".month .month-next");
+    expect(css).toContain(".calendar-saint");
   });
 });
