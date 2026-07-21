@@ -14,6 +14,7 @@ use std::io::{Read, Write};
 use tauri::Manager;
 const SERVICE: &str = "it.parrocchia.gestionale-intenzioni";
 const USER: &str = "admin-password-hash";
+const REMEMBERED_LOGIN_USER: &str = "remembered-login-token";
 const GOOGLE_DRIVE_TOKEN_USER: &str = "google-drive-oauth-token";
 const GOOGLE_DRIVE_ACCOUNT_USER: &str = "google-drive-account-email";
 fn entry() -> Result<keyring::Entry, String> {
@@ -27,6 +28,27 @@ fn has_password() -> bool {
     entry()
         .and_then(|e| e.get_password().map_err(|x| x.to_string()))
         .is_ok()
+}
+fn new_remembered_login_token() -> String {
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    URL_SAFE_NO_PAD.encode(bytes)
+}
+#[tauri::command]
+#[allow(dead_code)]
+fn has_remembered_login() -> bool {
+    has_password()
+        && named_entry(REMEMBERED_LOGIN_USER)
+            .and_then(|e| e.get_password().map_err(|x| x.to_string()))
+            .map(|token| token.len() >= 32)
+            .unwrap_or(false)
+}
+#[tauri::command]
+fn clear_remembered_login() -> Result<bool, String> {
+    if let Ok(e) = named_entry(REMEMBERED_LOGIN_USER) {
+        let _ = e.delete_credential();
+    }
+    Ok(true)
 }
 #[tauri::command]
 fn set_initial_password(password: String) -> Result<bool, String> {
@@ -42,6 +64,9 @@ fn set_initial_password(password: String) -> Result<bool, String> {
         .map_err(|e| e.to_string())?
         .to_string();
     entry()?.set_password(&hash).map_err(|e| e.to_string())?;
+    named_entry(REMEMBERED_LOGIN_USER)?
+        .set_password(&new_remembered_login_token())
+        .map_err(|e| e.to_string())?;
     Ok(true)
 }
 #[tauri::command]
@@ -52,9 +77,15 @@ fn verify_password(password: String) -> bool {
     let Ok(parsed) = PasswordHash::new(&hash) else {
         return false;
     };
-    Argon2::default()
+    let ok = Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
-        .is_ok()
+        .is_ok();
+    if ok {
+        if let Ok(e) = named_entry(REMEMBERED_LOGIN_USER) {
+            let _ = e.set_password(&new_remembered_login_token());
+        }
+    }
+    ok
 }
 #[tauri::command]
 fn change_password(current_password: String, new_password: String) -> Result<bool, String> {
@@ -70,6 +101,7 @@ fn change_password(current_password: String, new_password: String) -> Result<boo
         .map_err(|e| e.to_string())?
         .to_string();
     entry()?.set_password(&hash).map_err(|e| e.to_string())?;
+    clear_remembered_login()?;
     Ok(true)
 }
 #[tauri::command]
@@ -78,6 +110,7 @@ fn delete_account(current_password: String) -> Result<bool, String> {
         return Err("La password non è corretta.".into());
     }
     entry()?.delete_credential().map_err(|e| e.to_string())?;
+    clear_remembered_login()?;
     Ok(true)
 }
 #[tauri::command]

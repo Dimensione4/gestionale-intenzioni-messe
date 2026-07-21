@@ -20,7 +20,7 @@ export function App() {
   const [page,setPage]=useState<"calendar"|"archive"|"settings"|"tutorial">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
   const [settingsStart,setSettingsStart]=useState<SettingsSection>("parish");
   const [availableUpdate,setAvailableUpdate]=useState<Update|null>(null),[tutorialOpen,setTutorialOpen]=useState(false);
-  useEffect(()=>{invoke<boolean>("has_password").then(v=>setSetup(!v)).finally(()=>setLoading(false))},[]);
+  useEffect(()=>{Promise.all([invoke<boolean>("has_password"),invoke<boolean>("has_remembered_login")]).then(([hasPassword,remembered])=>{setSetup(!hasPassword);if(hasPassword&&remembered)setAuthenticated(true)}).finally(()=>setLoading(false))},[]);
   useEffect(()=>{if(authenticated)loadSettings().then(setSettings)},[authenticated]);
   useEffect(()=>{if(!settings)return;document.documentElement.style.setProperty("--primary",settings.primary_color);document.documentElement.style.setProperty("--primary-deep",settings.primary_color);document.documentElement.style.setProperty("--accent",settings.accent_color)},[settings]);
   useEffect(()=>{if(!authenticated||!settings)return;const run=()=>{const frequency=(settings.backup_frequency_hours??6)*60*60*1000,last=Number(localStorage.getItem("last-auto-backup-at")??0);if(Date.now()-last<frequency)return;createBackup().then(()=>localStorage.setItem("last-auto-backup-at",String(Date.now()))).catch(()=>undefined)};run();const timer=window.setInterval(run,15*60*1000);return()=>window.clearInterval(timer)},[authenticated,settings]);
@@ -34,7 +34,7 @@ export function App() {
     <button className={page==="archive"?"active":""} onClick={()=>setPage("archive")}><ArchiveIcon/> Archivio</button>
     <button className={page==="tutorial"?"active":""} onClick={()=>setPage("tutorial")}><BookOpen/> Tutorial</button>
     <button className={page==="settings"?"active":""} onClick={()=>{setSettingsStart("parish");setPage("settings")}}><Cog/> Impostazioni</button></nav>
-    <button className="logout" onClick={()=>setAuthenticated(false)}><LogOut/> Esci</button></aside>
+    <button className="logout" onClick={async()=>{await invoke("clear_remembered_login").catch(()=>undefined);setAuthenticated(false)}}><LogOut/> Esci</button></aside>
     <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:page==="tutorial"?<TutorialPage openSection={openTutorialSection}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
     {tutorialOpen&&<TutorialOverlay close={()=>{localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}} openTutorial={()=>{setPage("tutorial");localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}}/>}
     {availableUpdate&&<UpdateDialog update={availableUpdate} close={()=>setAvailableUpdate(null)}/>}</div>;

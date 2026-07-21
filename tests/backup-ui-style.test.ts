@@ -25,4 +25,14 @@ describe("stile backup online",()=>{
     expect(css).toContain(".drive-upload-result");
     expect(app).not.toContain("Prossimo step tecnico");
   });
+
+  it("ricorda l'accesso senza salvare la password in chiaro",()=>{
+    const app=readFileSync("src/App.tsx","utf8");
+    const rust=readFileSync("src-tauri/src/lib.rs","utf8");
+
+    expect(app).toContain("has_remembered_login");
+    expect(app).toContain("clear_remembered_login");
+    expect(rust).toContain("REMEMBERED_LOGIN_USER");
+    expect(rust).toContain("new_remembered_login_token");
+  });
 });

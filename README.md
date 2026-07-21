@@ -36,19 +36,21 @@ https://github.com/Dimensione4/gestionale-intenzioni-messe/releases/latest
 Per il prete, il file consigliato è l'installer `.exe`:
 
 ```text
-Gestionale.Intenzioni.Messe_0.1.3_x64-setup.exe
+Gestionale.Intenzioni.Messe_0.1.4_x64-setup.exe
 ```
 
 In alternativa:
 
 1. Copia su chiavetta uno dei file generati nella cartella `src-tauri/target/release/bundle/`:
-   - `nsis/Gestionale Intenzioni Messe_0.1.3_x64-setup.exe`, consigliato per l'installazione guidata;
-   - `msi/Gestionale Intenzioni Messe_0.1.3_x64_en-US.msi`, utile in ambienti Windows gestiti.
+   - `nsis/Gestionale Intenzioni Messe_0.1.4_x64-setup.exe`, consigliato per l'installazione guidata;
+   - `msi/Gestionale Intenzioni Messe_0.1.4_x64_en-US.msi`, utile in ambienti Windows gestiti.
 2. Sul PC della parrocchia apri il file `.exe` o `.msi` e completa l'installazione.
 3. Al primo avvio crea la password amministratore.
 4. Entra in **Impostazioni** e compila i dati della parrocchia, gli orari standard delle messe e il formato ricevuta `58mm` o `80mm`.
 
-I dati, la password e lo storico restano sul computer locale. Per sicurezza usa **Impostazioni -> Backup e ripristino -> Crea backup ora**, soprattutto prima di spostare il programma su un altro PC.
+I dati, la password e lo storico restano sul computer locale. Dopo il primo accesso riuscito il gestionale ricorda l'accesso sul PC tramite il Credential Manager di Windows, quindi chiudendo e riaprendo entra automaticamente. Il pulsante **Esci** dimentica l'accesso automatico e richiederà di nuovo la password al prossimo avvio.
+
+Per sicurezza usa **Impostazioni -> Backup e ripristino -> Crea backup ora**, soprattutto prima di spostare il programma su un altro PC.
 
 ## Backup
 
@@ -94,7 +96,7 @@ npm run tauri build
 src-tauri\target\release\bundle\nsis
 ```
 
-3. Copia su chiavetta il file `Gestionale Intenzioni Messe_0.1.3_x64-setup.exe`.
+3. Copia su chiavetta il file `Gestionale Intenzioni Messe_0.1.4_x64-setup.exe`.
 4. Sul PC del prete fai doppio clic sul file copiato.
 5. Se Windows mostra un avviso di protezione, scegli **Ulteriori informazioni** e poi **Esegui comunque**, se il file arriva da te.
 6. Dopo l'installazione apri il gestionale, crea la password e configura parrocchia, orari e ricevute.
