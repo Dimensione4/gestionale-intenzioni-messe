@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Calendar, Memos, memoPrintTitle } from "../src/App";
@@ -78,6 +78,39 @@ describe("promemoria celebrazione messe", () => {
       { mass_date: "2027-11-16" },
       { mass_date: "2027-04-15" },
     ], "Don Giacomo")).toBe("Promemoria messe - Don Giacomo - 2027-04-15");
+  });
+
+  it("permette di non registrare la quota e scegliere il formato stampantina del promemoria", async () => {
+    const createMemo = vi.fn(async (values: NewIntention[]): Promise<MassMemo> => ({
+      id: 14,
+      offerer_first_name: values[0].offerer_first_name,
+      offerer_last_name: values[0].offerer_last_name,
+      offerer_phone: values[0].offerer_phone,
+      offering_cents: values[0].offering_cents,
+      payment_method: values[0].payment_method,
+      status: "active",
+      created_at: "",
+      updated_at: "",
+      items: values.map((value, index) => ({ id: index + 1, ...value, status: "active", receipt_number: index + 1, receipt_status: "valid" })),
+    }));
+    render(<Calendar repository={{ list: vi.fn(async () => []), settings: vi.fn(async () => settings), create: vi.fn(), createMemo }} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /nuovo promemoria/i }));
+    fireEvent.change(screen.getByLabelText(/^nome offerente$/i), { target: { value: "Don" } });
+    fireEvent.change(screen.getByLabelText(/^cognome offerente$/i), { target: { value: "Giacomo" } });
+    fireEvent.click(screen.getByLabelText(/registra quota/i));
+    fireEvent.change(screen.getByLabelText(/giorno riga 1/i), { target: { value: "2027-04-15" } });
+    fireEvent.change(screen.getByLabelText(/a ricordo di riga 1/i), { target: { value: "Famiglia Rossi" } });
+    fireEvent.click(screen.getByRole("button", { name: /salva promemoria/i }));
+
+    await waitFor(() => expect(createMemo).toHaveBeenCalled());
+    expect(createMemo.mock.calls[0][0][0]).toEqual(expect.objectContaining({ offering_cents: 0 }));
+
+    const dialog = await screen.findByRole("dialog", { name: /promemoria pronto/i });
+    expect(within(dialog).queryByRole("columnheader", { name: /quota/i })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByLabelText(/stampantina 80 mm/i));
+    expect(dialog.querySelector(".memo-print.thermal")).toBeTruthy();
+    expect(dialog.querySelector("[data-memo-page-size]")?.textContent).toContain("80mm 200mm");
   });
 
   it("mostra storico promemoria con ristampa, modifica ed eliminazione in blocco", async () => {

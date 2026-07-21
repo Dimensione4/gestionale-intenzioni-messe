@@ -5,13 +5,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { Archive as ArchiveIcon, ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Church, Cloud, Download, FileText, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
-import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
+import { eachDayOfInterval, endOfMonth, endOfWeek, format, getDay, startOfMonth, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { cancelReceipt, createBackup, createIntention, createMassMemo, deleteIntention, deleteMassMemo, loadArchive, loadAuditLogs, loadIntentions, loadMassMemos, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention, updateMassMemo } from "./lib/db";
 import type { AuditLog, MassIntention, MassMemo, MassScheduleRule, NewIntention, ParishSettings } from "./lib/db";
 import { getCelebrationOfDay } from "./lib/saints";
 
 type SettingsSection="parish"|"schedules"|"receipt"|"appearance"|"user"|"backup";
+type PrintFormat="a4"|"thermal";
 type GoogleDriveConnection={connected:boolean;account_email:string;message:string};
 type GoogleDriveUploadResult={id:string;name:string;web_view_link?:string|null;folder_path:string};
 
@@ -208,7 +209,7 @@ const emptyMemoRow=():MemoRow=>({mass_date:"",mass_time:"18:00",remembered_perso
 
 function MassMemoDialog({repository,close,saved,initialMemo}:{repository:IntentionRepository;close:()=>void;saved:(memo:MassMemo)=>void;initialMemo?:MassMemo}){
   const [offererFirst,setOffererFirst]=useState(initialMemo?.offerer_first_name??""),[offererLast,setOffererLast]=useState(initialMemo?.offerer_last_name??""),[offererPhone,setOffererPhone]=useState(initialMemo?.offerer_phone??""),[offering,setOffering]=useState(initialMemo?.offering_cents??1500),[payment,setPayment]=useState(initialMemo?.payment_method??"Contanti");
-  const [rows,setRows]=useState<MemoRow[]>(initialMemo?initialMemo.items.map(item=>({mass_date:item.mass_date,mass_time:item.mass_time,remembered_person:item.remembered_person,intention_text:item.intention_text,internal_notes:item.internal_notes})):[{...emptyMemoRow()},{...emptyMemoRow()},{...emptyMemoRow()}]),[maximum,setMaximum]=useState(3),[saving,setSaving]=useState(false),[error,setError]=useState(""),[created,setCreated]=useState<MassMemo|null>(null);
+  const [hasOffering,setHasOffering]=useState(!initialMemo||initialMemo.offering_cents>0),[rows,setRows]=useState<MemoRow[]>(initialMemo?initialMemo.items.map(item=>({mass_date:item.mass_date,mass_time:item.mass_time,remembered_person:item.remembered_person,intention_text:item.intention_text,internal_notes:item.internal_notes})):[{...emptyMemoRow()},{...emptyMemoRow()},{...emptyMemoRow()}]),[maximum,setMaximum]=useState(3),[saving,setSaving]=useState(false),[error,setError]=useState(""),[created,setCreated]=useState<MassMemo|null>(null);
   useEffect(()=>{repository.settings().then(settings=>{setMaximum(settings.max_intentions_per_mass);if(!initialMemo)setOffering(settings.default_offering_cents)})},[repository,initialMemo]);
   const updateRow=(index:number,key:keyof MemoRow,value:string)=>setRows(current=>current.map((row,i)=>i===index?{...row,[key]:value}:row));
   const removeRow=(index:number)=>setRows(current=>current.filter((_,i)=>i!==index));
@@ -227,7 +228,7 @@ function MassMemoDialog({repository,close,saved,initialMemo}:{repository:Intenti
           offerer_phone:offererPhone,
           remembered_person:row.remembered_person,
           intention_text:row.intention_text||`A ricordo di ${row.remembered_person}`,
-          offering_cents:offering,
+          offering_cents:hasOffering?offering:0,
           payment_method:payment,
           internal_notes:row.internal_notes,
         }));
@@ -240,8 +241,9 @@ function MassMemoDialog({repository,close,saved,initialMemo}:{repository:Intenti
     <div className="dialog-head"><div><p className="eyebrow">Inserimento multiplo</p><h2 id="memo-title">{initialMemo?"Modifica promemoria":"Nuovo promemoria celebrazione S. Messa"}</h2></div><button type="button" onClick={close}>Chiudi ×</button></div>
     <form onSubmit={submit}><p className="page-subtitle">Ogni riga verrà salvata come intenzione reale nella data corretta del calendario.</p><div className="form-grid">
       <label>Nome offerente<input value={offererFirst} onChange={e=>setOffererFirst(e.target.value)}/></label><label>Cognome offerente<input value={offererLast} onChange={e=>setOffererLast(e.target.value)}/></label>
-      <label>Telefono (facoltativo)<input value={offererPhone} onChange={e=>setOffererPhone(e.target.value)}/></label><label>Offerta per messa (€)<input required type="number" min="0" step=".01" value={offering/100} onChange={e=>setOffering(Math.round(+e.target.value*100))}/></label>
-      <label>Pagamento<select value={payment} onChange={e=>setPayment(e.target.value)}><option>Contanti</option><option>Bonifico</option><option>Altro</option></select></label>
+      <label>Telefono (facoltativo)<input value={offererPhone} onChange={e=>setOffererPhone(e.target.value)}/></label><label>Pagamento<select value={payment} onChange={e=>setPayment(e.target.value)}><option>Contanti</option><option>Bonifico</option><option>Altro</option></select></label>
+      <label className="check-field wide"><input type="checkbox" checked={hasOffering} onChange={e=>setHasOffering(e.target.checked)}/> Registra quota/offerta per queste messe</label>
+      {hasOffering&&<label>Quota/offerta per messa (€)<input required type="number" min="0" step=".01" value={offering/100} onChange={e=>setOffering(Math.round(+e.target.value*100))}/></label>}
     </div><div className="memo-rows"><div className="memo-rows-head"><span>Giorno</span><span>Ora</span><span>A ricordo di</span><span>Note</span><span/></div>{rows.map((row,index)=><div className="memo-row" key={index}>
       <input aria-label={`Giorno riga ${index+1}`} type="date" value={row.mass_date} onChange={e=>updateRow(index,"mass_date",e.target.value)}/>
       <input aria-label={`Ora riga ${index+1}`} type="time" value={row.mass_time} onChange={e=>updateRow(index,"mass_time",e.target.value)}/>
@@ -262,6 +264,7 @@ export function memoPrintTitle(records:Pick<MassIntention,"mass_date">[],offerer
 
 function MassMemoPreview({memo,close}:{memo:MassMemo;close:()=>void}){
   const records=memo.items,offerer=`${memo.offerer_first_name} ${memo.offerer_last_name}`.trim(),phone=memo.offerer_phone;
+  const [printFormat,setPrintFormat]=useState<PrintFormat>("a4"),[showOffering,setShowOffering]=useState(memo.offering_cents>0);
   function printMemo(){
     const previousTitle=document.title;
     document.title=memoPrintTitle(records,offerer);
@@ -269,8 +272,11 @@ function MassMemoPreview({memo,close}:{memo:MassMemo;close:()=>void}){
     window.addEventListener("afterprint",restoreTitle);
     requestAnimationFrame(()=>{window.print();setTimeout(restoreTitle,1000)});
   }
-  return <div className="modal-backdrop"><div className="dialog memo-dialog memo-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="memo-preview-title"><div className="dialog-head no-print"><div><p className="eyebrow">Documento</p><h2 id="memo-preview-title">Promemoria pronto</h2></div></div>
-    <div className="memo-print"><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table><thead><tr><th>Giorno</th><th>Ora</th><th>A ricordo di…</th><th>Note</th></tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td></tr>)}</tbody></table></div>
+  return <div className="modal-backdrop"><div className="dialog memo-dialog memo-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="memo-preview-title">
+    <style data-memo-page-size>{`@media print { @page { size: ${printFormat==="a4"?"A4 landscape":"80mm 200mm"}; margin: ${printFormat==="a4"?"12mm":"3mm"}; } }`}</style>
+    <div className="dialog-head no-print"><div><p className="eyebrow">Documento</p><h2 id="memo-preview-title">Promemoria pronto</h2></div></div>
+    <div className="print-options memo-print-options no-print"><fieldset><legend>Formato stampa</legend><label><input type="radio" checked={printFormat==="a4"} onChange={()=>setPrintFormat("a4")}/> Foglio A4</label><label><input type="radio" checked={printFormat==="thermal"} onChange={()=>setPrintFormat("thermal")}/> Stampantina 80 mm</label></fieldset><label className="check-field"><input type="checkbox" checked={showOffering} onChange={e=>setShowOffering(e.target.checked)}/> Mostra quota/offerta</label></div>
+    <div className={`memo-print ${printFormat}`}><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table><thead><tr><th>Giorno</th><th>Ora</th><th>A ricordo di…</th><th>Note</th>{showOffering&&<th>Quota</th>}</tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td>{showOffering&&<td>€ {(record.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table></div>
     <div className="actions memo-actions no-print"><button className="secondary-button" onClick={close}>Chiudi</button><button className="primary" onClick={printMemo}><Printer/> Stampa promemoria</button></div></div></div>;
 }
 
@@ -308,19 +314,23 @@ function MonthlyList({days,intentions,schedules,openDay}:{days:Date[];intentions
 
 function PrintIntentionsDialog({month,repository,close}:{month:Date;repository:IntentionRepository;close:()=>void}){
   const monthStart=format(startOfMonth(month),"yyyy-MM-dd"),monthEnd=format(endOfMonth(month),"yyyy-MM-dd");
-  const [period,setPeriod]=useState<"day"|"month"|"range">("month"),[from,setFrom]=useState(monthStart),[to,setTo]=useState(monthEnd),[offerings,setOfferings]=useState(false),[items,setItems]=useState<MassIntention[]>([]),[printing,setPrinting]=useState(false),[error,setError]=useState("");
-  const bounds=()=>period==="day"?[from,from]:period==="month"?[monthStart,monthEnd]:[from,to];
+  const [period,setPeriod]=useState<"day"|"week"|"month"|"range">("week"),[from,setFrom]=useState(monthStart),[to,setTo]=useState(monthEnd),[weekDay,setWeekDay]=useState(format(month,"yyyy-MM-dd")),[offerings,setOfferings]=useState(false),[printFormat,setPrintFormat]=useState<PrintFormat>("a4"),[items,setItems]=useState<MassIntention[]>([]),[printing,setPrinting]=useState(false),[error,setError]=useState("");
+  const bounds=()=>period==="day"?[from,from]:period==="week"?[format(startOfWeek(new Date(`${weekDay}T12:00:00`),{weekStartsOn:1}),"yyyy-MM-dd"),format(endOfWeek(new Date(`${weekDay}T12:00:00`),{weekStartsOn:1}),"yyyy-MM-dd")]:period==="month"?[monthStart,monthEnd]:[from,to];
   async function print(){setError("");const [start,end]=bounds();if(start>end)return setError("La data iniziale deve precedere quella finale.");setPrinting(true);try{setItems(await repository.list(start,end));setTimeout(()=>window.print(),50)}catch(e){setError(String(e))}finally{setPrinting(false)}}
-  return <div className="modal-backdrop"><div className="dialog print-dialog" role="dialog" aria-modal="true" aria-labelledby="print-title"><div className="dialog-head no-print"><div><p className="eyebrow">Stampa</p><h2 id="print-title">Stampa elenco intenzioni</h2></div><button onClick={close}>Chiudi ×</button></div>
-    <div className="print-options no-print"><fieldset><legend>Periodo da stampare</legend><label><input type="radio" checked={period==="day"} onChange={()=>setPeriod("day")}/> Un giorno</label><label><input type="radio" checked={period==="month"} onChange={()=>setPeriod("month")}/> Tutto il mese</label><label><input type="radio" checked={period==="range"} onChange={()=>setPeriod("range")}/> Intervallo personalizzato</label></fieldset>
-    {period!=="month"&&<div className="print-dates"><label>Dal giorno<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>{period==="range"&&<label>Al giorno<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>}</div>}
+  return <div className="modal-backdrop"><div className="dialog print-dialog" role="dialog" aria-modal="true" aria-labelledby="print-title">
+    <style data-report-page-size>{`@media print { @page { size: ${printFormat==="a4"?"A4 portrait":"80mm 200mm"}; margin: ${printFormat==="a4"?"12mm":"3mm"}; } }`}</style>
+    <div className="dialog-head no-print"><div><p className="eyebrow">Stampa</p><h2 id="print-title">Stampa elenco intenzioni</h2></div><button onClick={close}>Chiudi ×</button></div>
+    <div className="print-options no-print"><fieldset><legend>Periodo da stampare</legend><label><input type="radio" checked={period==="day"} onChange={()=>setPeriod("day")}/> Un giorno</label><label><input type="radio" checked={period==="week"} onChange={()=>setPeriod("week")}/> Settimana</label><label><input type="radio" checked={period==="month"} onChange={()=>setPeriod("month")}/> Tutto il mese</label><label><input type="radio" checked={period==="range"} onChange={()=>setPeriod("range")}/> Intervallo personalizzato</label></fieldset>
+    {period==="week"&&<div className="print-dates"><label>Settimana del giorno<input type="date" value={weekDay} onChange={e=>setWeekDay(e.target.value)}/></label></div>}
+    {period!=="month"&&period!=="week"&&<div className="print-dates"><label>Dal giorno<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>{period==="range"&&<label>Al giorno<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>}</div>}
+    <fieldset><legend>Formato stampa</legend><label><input type="radio" checked={printFormat==="a4"} onChange={()=>setPrintFormat("a4")}/> Foglio A4</label><label><input type="radio" checked={printFormat==="thermal"} onChange={()=>setPrintFormat("thermal")}/> Stampantina 80 mm</label></fieldset>
     <label className="check-field"><input type="checkbox" checked={offerings} onChange={e=>setOfferings(e.target.checked)}/> Includi importi delle offerte</label>{error&&<p className="error">{error}</p>}</div>
-    <PrintIntentionsReport items={items} from={bounds()[0]} to={bounds()[1]} offerings={offerings}/>
+    <PrintIntentionsReport items={items} from={bounds()[0]} to={bounds()[1]} offerings={offerings} printFormat={printFormat}/>
     <div className="actions no-print"><button className="primary" disabled={printing} onClick={print}><Printer/> {printing?"Preparazione…":"Stampa elenco"}</button></div></div></div>;
 }
 
-function PrintIntentionsReport({items,from,to,offerings}:{items:MassIntention[];from:string;to:string;offerings:boolean}){
-  return <div className="print-report"><h1>Elenco intenzioni delle messe</h1><p>Periodo: {from===to?from:`dal ${from} al ${to}`}</p><table><thead><tr><th>Giorno</th><th>Ora</th><th>Intenzione</th>{offerings&&<th>Offerta</th>}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td>{item.mass_date}</td><td>{item.mass_time}</td><td>{item.intention_text}</td>{offerings&&<td>€ {(item.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table>{items.length===0&&<p>Nessuna intenzione nel periodo selezionato.</p>}</div>;
+function PrintIntentionsReport({items,from,to,offerings,printFormat}:{items:MassIntention[];from:string;to:string;offerings:boolean;printFormat:PrintFormat}){
+  return <div className={`print-report ${printFormat}`}><h1>Elenco intenzioni delle messe</h1><p>Periodo: {from===to?from:`dal ${from} al ${to}`}</p>{printFormat==="thermal"?<div className="thermal-list">{items.map(item=><article key={item.id}><strong>{new Date(`${item.mass_date}T12:00:00`).toLocaleDateString("it-IT")} · {item.mass_time}</strong><span>{item.remembered_person||item.intention_text}</span>{item.internal_notes&&<small>{item.internal_notes}</small>}{offerings&&<b>€ {(item.offering_cents/100).toFixed(2)}</b>}</article>)}</div>:<table><thead><tr><th>Giorno</th><th>Ora</th><th>Persona ricordata</th><th>Intenzione</th>{offerings&&<th>Offerta</th>}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td>{item.mass_date}</td><td>{item.mass_time}</td><td>{item.remembered_person}</td><td>{item.intention_text}</td>{offerings&&<td>€ {(item.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table>}{items.length===0&&<p>Nessuna intenzione nel periodo selezionato.</p>}</div>;
 }
 
 function DayDetail({date,items,schedules,settingsRepository,back,add,edit,changed,dialogs}:{date:string;items:MassIntention[];schedules:MassScheduleRule[];settingsRepository:typeof loadSettings;back:()=>void;add:(time:string)=>void;edit:(item:MassIntention)=>void;changed:()=>void;dialogs:ReactNode}){

@@ -65,6 +65,8 @@ textarea { font: inherit; padding: 10px 14px; border: 2px solid #b8bec5; border-
   body:has(.memo-preview-dialog) .memo-print { position: static; left: auto; top: auto; margin: 0; page-break-after: avoid; break-after: avoid; }
   .receipt { display: block; position: absolute; left: 0; top: 0; margin: 0; }
   .print-report { display: block; position: absolute; left: 0; top: 0; margin: 0; width: 100%; }
+  .print-report.thermal { width: 80mm; }
   .memo-print { display: block; position: absolute; left: 0; top: 0; margin: 0; width: 100%; }
+  .memo-print.thermal { width: 80mm; }
   .no-print { display: none !important; }
 }

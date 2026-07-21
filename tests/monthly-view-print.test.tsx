@@ -47,4 +47,18 @@ describe("viste e stampa mensile",()=>{
     await waitFor(()=>expect(print).toHaveBeenCalled());
     expect(within(dialog).getByText("€ 15.00")).toBeInTheDocument();
   });
+  it("prevede stampa settimanale e formato stampantina",async()=>{
+    const repo=repository(),print=vi.spyOn(window,"print").mockImplementation(()=>undefined);
+    render(<Calendar repository={repo}/>);
+    fireEvent.click(screen.getByRole("button",{name:/stampa elenco/i}));
+    const dialog=screen.getByRole("dialog",{name:/stampa elenco intenzioni/i});
+
+    expect(within(dialog).getByRole("radio",{name:/^settimana$/i})).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText(/stampantina 80 mm/i));
+    fireEvent.click(within(dialog).getByRole("button",{name:/stampa elenco/i}));
+
+    await waitFor(()=>expect(print).toHaveBeenCalled());
+    expect(dialog.querySelector(".print-report.thermal")).toBeTruthy();
+    expect(dialog.querySelector("[data-report-page-size]")?.textContent).toContain("80mm 200mm");
+  });
 });

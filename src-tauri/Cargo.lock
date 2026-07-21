@@ -1377,7 +1377,7 @@ dependencies = [
 
 [[package]]
 name = "gestionale-intenzioni-messe"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "aes-gcm",
  "argon2",
