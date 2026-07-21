@@ -13,7 +13,18 @@ export type ParishSettings = {
 };
 const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_show_address:1,receipt_show_contacts:1,receipt_show_priest:1,receipt_show_offerer:1,receipt_show_intention:1,receipt_show_mass:1,receipt_show_offering:1,receipt_custom_message:"Grazie",receipt_custom_width_mm:0,receipt_custom_height_mm:0,backup_frequency_hours:6,online_backup_enabled:0,online_backup_provider:"google_drive",online_backup_account_email:"",online_backup_encryption_enabled:1 };
 let connection: Promise<Database> | undefined;
-const db = () => connection ??= Database.load("sqlite:gestionale.sqlite");
+const db = () => connection ??= Database.load("sqlite:gestionale.sqlite").then(async database=>{
+  await database.execute("PRAGMA busy_timeout = 5000").catch(()=>undefined);
+  await database.execute("PRAGMA journal_mode = WAL").catch(()=>undefined);
+  return database;
+});
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueWrite<T>(operation:()=>Promise<T>):Promise<T> {
+  const next=writeQueue.then(operation,operation);
+  writeQueue=next.catch(()=>undefined);
+  return next;
+}
 
 export async function loadSettings(): Promise<ParishSettings> {
   const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url,receipt_show_address,receipt_show_contacts,receipt_show_priest,receipt_show_offerer,receipt_show_intention,receipt_show_mass,receipt_show_offering,receipt_custom_message,receipt_custom_width_mm,receipt_custom_height_mm,backup_frequency_hours,online_backup_enabled,online_backup_provider,online_backup_account_email,online_backup_encryption_enabled FROM parish_settings WHERE id=1");
@@ -67,9 +78,8 @@ export async function createIntention(v:NewIntention,maximum:number):Promise<Mas
 
 export async function createMassMemo(values:NewIntention[],maximum:number):Promise<MassMemo> {
   if(values.length===0)throw new Error("Aggiungi almeno una messa al promemoria.");
-  const database=await db();
-  await database.execute("BEGIN");
-  try{
+  return enqueueWrite(async()=>{
+    const database=await db();
     const first=values[0];
     const memoResult=await database.execute(`INSERT INTO mass_memos(offerer_first_name,offerer_last_name,offerer_phone,offering_cents,payment_method,created_at,updated_at) VALUES($1,$2,$3,$4,$5,datetime('now'),datetime('now'))`,[first.offerer_first_name,first.offerer_last_name,first.offerer_phone,first.offering_cents,first.payment_method]);
     const memoId=Number(memoResult.lastInsertId);
@@ -83,12 +93,8 @@ export async function createMassMemo(values:NewIntention[],maximum:number):Promi
       const receipt=await database.select<{receipt_number:number}[]>("SELECT receipt_number FROM receipts WHERE intention_id=$1",[id]);
       items.push({...value,id,status:"active",receipt_number:receipt[0]?.receipt_number??null,receipt_status:"valid"});
     }
-    await database.execute("COMMIT");
     return {id:memoId,offerer_first_name:first.offerer_first_name,offerer_last_name:first.offerer_last_name,offerer_phone:first.offerer_phone,offering_cents:first.offering_cents,payment_method:first.payment_method,status:"active",created_at:"",updated_at:"",items};
-  }catch(e){
-    await database.execute("ROLLBACK").catch(()=>undefined);
-    throw e;
-  }
+  });
 }
 
 export async function loadMassMemos():Promise<MassMemo[]> {
@@ -102,9 +108,8 @@ export async function loadMassMemos():Promise<MassMemo[]> {
 
 export async function updateMassMemo(memo:MassMemo,values:NewIntention[],maximum:number):Promise<MassMemo> {
   if(values.length===0)throw new Error("Il promemoria deve avere almeno una riga.");
-  const database=await db();
-  await database.execute("BEGIN");
-  try{
+  return enqueueWrite(async()=>{
+    const database=await db();
     const first=values[0];
     await database.execute("UPDATE mass_memos SET offerer_first_name=$1,offerer_last_name=$2,offerer_phone=$3,offering_cents=$4,payment_method=$5,updated_at=datetime('now') WHERE id=$6",[first.offerer_first_name,first.offerer_last_name,first.offerer_phone,first.offering_cents,first.payment_method,memo.id]);
     const records:MassIntention[]=[];
@@ -125,25 +130,16 @@ export async function updateMassMemo(memo:MassMemo,values:NewIntention[],maximum
       }
     }
     for(const removed of memo.items.slice(values.length))await database.execute("UPDATE mass_intentions SET status='deleted',delete_reason='Rimosso dal promemoria',updated_at=datetime('now') WHERE id=$1",[removed.id]);
-    await database.execute("COMMIT");
     return {...memo,...first,items:records};
-  }catch(e){
-    await database.execute("ROLLBACK").catch(()=>undefined);
-    throw e;
-  }
+  });
 }
 
 export async function deleteMassMemo(id:number,reason="Promemoria eliminato") {
-  const database=await db();
-  await database.execute("BEGIN");
-  try{
+  await enqueueWrite(async()=>{
+    const database=await db();
     await database.execute("UPDATE mass_memos SET status='deleted',updated_at=datetime('now') WHERE id=$1",[id]);
     await database.execute("UPDATE mass_intentions SET status='deleted',delete_reason=$1,updated_at=datetime('now') WHERE id IN (SELECT intention_id FROM mass_memo_items WHERE memo_id=$2)",[reason,id]);
-    await database.execute("COMMIT");
-  }catch(e){
-    await database.execute("ROLLBACK").catch(()=>undefined);
-    throw e;
-  }
+  });
 }
 
 export async function loadArchive():Promise<MassIntention[]> {
