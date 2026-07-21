@@ -260,18 +260,28 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .memo-preview-dialog .memo-actions { margin-top: 30px; }
 .memo-print { color: #111; background: #fff; }
 .memo-print.a4 { width: 100%; }
-.memo-print.thermal { width: 80mm; margin-inline: auto; font-size: 11px; }
+.memo-print.thermal { width: 76mm; max-width: 100%; margin-inline: auto; font-size: 10px; }
 .memo-print table { margin-top: 20px; }
 .memo-print header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #111; }
 .memo-print header svg { width: 42px; height: 42px; }
 .memo-print header div { display: grid; }
 .memo-print header span { font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .memo-print header strong { font-size: 22px; }
-.memo-print table { width: 100%; border-collapse: collapse; font: 15px Arial, sans-serif; }
+.memo-print table { width: 100%; border-collapse: collapse; table-layout: fixed; font: 15px Arial, sans-serif; }
 .memo-print th, .memo-print td { padding: 10px; border: 1px solid #333; text-align: left; vertical-align: top; }
 .memo-print th { background: #f1f1f1; text-transform: uppercase; font-size: 13px; }
-.memo-print.thermal table { font-size: 10.5px; }
-.memo-print.thermal th, .memo-print.thermal td { padding: 5px 4px; }
+.memo-print.thermal .memo-date-col { width: 17mm; }
+.memo-print.thermal .memo-time-col { width: 10mm; }
+.memo-print.thermal .memo-person-col { width: 29mm; }
+.memo-print.thermal .memo-notes-col { width: 20mm; }
+.memo-print.thermal table.with-offering .memo-person-col { width: 25mm; }
+.memo-print.thermal table.with-offering .memo-notes-col { width: 14mm; }
+.memo-print.thermal .memo-offering-col { width: 10mm; }
+.memo-print.thermal table { font-size: 8.8px; line-height: 1.18; }
+.memo-print.thermal th, .memo-print.thermal td { padding: 3px 2px; overflow-wrap: anywhere; }
+.memo-print.thermal th { font-size: 7.4px; white-space: nowrap; letter-spacing: 0; }
+.memo-print.thermal td:nth-child(1), .memo-print.thermal td:nth-child(2), .memo-print.thermal td:last-child { white-space: nowrap; }
+.memo-print.thermal td:nth-child(3) { font-weight: 700; }
 .memo-print.thermal header { gap: 8px; margin-bottom: 10px; padding-bottom: 8px; }
 .memo-print.thermal header svg { width: 28px; height: 28px; }
 .memo-print.thermal header span { font-size: 10px; }

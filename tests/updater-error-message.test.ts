@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { updateCheckErrorMessage } from "../src/App";
 
 describe("messaggi aggiornamenti",()=>{
-  it("spiega quando manca latest.json nelle release GitHub",()=>{
-    expect(updateCheckErrorMessage("Could not fetch a valid release JSON from the remote")).toBe("Canale aggiornamenti non ancora inizializzato: su GitHub Releases manca il file latest.json. Pubblica una release firmata e riprova.");
+  it("nasconde dettagli tecnici quando il controllo aggiornamenti non risponde",()=>{
+    const message=updateCheckErrorMessage("Could not fetch a valid release JSON from the remote");
+
+    expect(message).toBe("Non riesco a controllare gli aggiornamenti in questo momento. Riprova più tardi.");
+    expect(message).not.toMatch(/json|latest|release/i);
   });
 
-  it("mantiene dettagli per errori non riconosciuti",()=>{
-    expect(updateCheckErrorMessage("firma non valida")).toContain("firma non valida");
+  it("mostra un messaggio generico per errori non riconosciuti",()=>{
+    expect(updateCheckErrorMessage("firma non valida")).toBe("Non riesco a controllare gli aggiornamenti in questo momento. Riprova più tardi.");
   });
 });

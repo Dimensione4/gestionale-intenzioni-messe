@@ -111,6 +111,19 @@ describe("promemoria celebrazione messe", () => {
     fireEvent.click(within(dialog).getByLabelText(/stampantina 80 mm/i));
     expect(dialog.querySelector(".memo-print.thermal")).toBeTruthy();
     expect(dialog.querySelector("[data-memo-page-size]")?.textContent).toContain("80mm 200mm");
+    expect(within(dialog).getByRole("columnheader", { name: /^data$/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("columnheader", { name: /^ricordo$/i })).toBeInTheDocument();
+  });
+
+  it("compatta il promemoria termico per non ritagliare la tabella sugli 80 mm", () => {
+    const css = readFileSync("src/styles.css", "utf8");
+    const modalCss = readFileSync("src/modal.css", "utf8");
+
+    expect(css).toContain(".memo-print.thermal { width: 76mm;");
+    expect(css).toContain(".memo-print.thermal table { font-size: 8.8px;");
+    expect(css).toContain(".memo-print.thermal th { font-size: 7.4px;");
+    expect(css).toContain(".memo-print.thermal .memo-offering-col { width: 10mm; }");
+    expect(modalCss).toContain(".memo-print.thermal { width: 76mm; }");
   });
 
   it("mostra storico promemoria con ristampa, modifica ed eliminazione in blocco", async () => {

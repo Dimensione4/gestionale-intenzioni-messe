@@ -48,9 +48,9 @@ async function checkForAvailableUpdate(){
 
 export function updateCheckErrorMessage(error:unknown){
   const raw=String(error);
-  if(raw.includes("valid release JSON")||raw.includes("latest.json"))return "Canale aggiornamenti non ancora inizializzato: su GitHub Releases manca il file latest.json. Pubblica una release firmata e riprova.";
-  if(raw.toLowerCase().includes("fetch"))return "Non riesco a contattare il canale aggiornamenti. Verifica la connessione internet e riprova.";
-  return `Controllo aggiornamenti non riuscito: ${raw}`;
+  if(raw.includes("valid release JSON")||raw.includes("latest.json"))return "Non riesco a controllare gli aggiornamenti in questo momento. Riprova più tardi.";
+  if(raw.toLowerCase().includes("fetch"))return "Non riesco a controllare gli aggiornamenti. Verifica la connessione internet e riprova.";
+  return "Non riesco a controllare gli aggiornamenti in questo momento. Riprova più tardi.";
 }
 
 function updateBody(update:Update){
@@ -73,11 +73,10 @@ function UpdateDialog({update,close}:{update:Update;close:()=>void}){
     }catch(e){setError(String(e));setInstalling(false);}
   }
   return <div className="modal-backdrop"><div className="dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title"><div className="update-hero"><RefreshCw/><div><p className="eyebrow">Aggiornamento disponibile</p><h2 id="update-title">Versione {update.version}</h2></div></div>
-    <p>Stai usando la versione {update.currentVersion}. Puoi installare ora l'aggiornamento; il gestionale si riaprirà automaticamente.</p>
-    <div className="update-notes"><strong>Novità</strong><p>{updateBody(update)}</p></div>
+    <p>È disponibile una nuova versione del gestionale. Scaricala ora: al termine l’app si riaprirà automaticamente.</p>
     {message&&<div className="update-progress" role="status"><span>{message}</span>{progress!==undefined&&<progress max="100" value={progress}/>}</div>}
     {error&&<p className="error">{error}</p>}
-    <div className="actions"><button disabled={installing} onClick={close}>Più tardi</button><button className="primary" disabled={installing} onClick={install}><Download/> {installing?"Installazione...":"Installa aggiornamento"}</button></div></div></div>;
+    <div className="actions"><button disabled={installing} onClick={close}>Più tardi</button><button className="primary" disabled={installing} onClick={install}><Download/> {installing?"Scaricamento...":"Scarica il nuovo aggiornamento"}</button></div></div></div>;
 }
 
 type TutorialTarget={page:"calendar"|"archive"|"settings"|"tutorial";settingsStart?:SettingsSection};
@@ -276,7 +275,7 @@ function MassMemoPreview({memo,close}:{memo:MassMemo;close:()=>void}){
     <style data-memo-page-size>{`@media print { @page { size: ${printFormat==="a4"?"A4 landscape":"80mm 200mm"}; margin: ${printFormat==="a4"?"12mm":"3mm"}; } }`}</style>
     <div className="dialog-head no-print"><div><p className="eyebrow">Documento</p><h2 id="memo-preview-title">Promemoria pronto</h2></div></div>
     <div className="print-options memo-print-options no-print"><fieldset><legend>Formato stampa</legend><label><input type="radio" checked={printFormat==="a4"} onChange={()=>setPrintFormat("a4")}/> Foglio A4</label><label><input type="radio" checked={printFormat==="thermal"} onChange={()=>setPrintFormat("thermal")}/> Stampantina 80 mm</label></fieldset><label className="check-field"><input type="checkbox" checked={showOffering} onChange={e=>setShowOffering(e.target.checked)}/> Mostra quota/offerta</label></div>
-    <div className={`memo-print ${printFormat}`}><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table><thead><tr><th>Giorno</th><th>Ora</th><th>A ricordo di…</th><th>Note</th>{showOffering&&<th>Quota</th>}</tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td>{showOffering&&<td>€ {(record.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table></div>
+    <div className={`memo-print ${printFormat}`}><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table className={showOffering?"with-offering":""}><colgroup><col className="memo-date-col"/><col className="memo-time-col"/><col className="memo-person-col"/><col className="memo-notes-col"/>{showOffering&&<col className="memo-offering-col"/>}</colgroup><thead><tr><th>{printFormat==="thermal"?"Data":"Giorno"}</th><th>Ora</th><th>{printFormat==="thermal"?"Ricordo":"A ricordo di…"}</th><th>Note</th>{showOffering&&<th>Quota</th>}</tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td>{showOffering&&<td>€ {(record.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table></div>
     <div className="actions memo-actions no-print"><button className="secondary-button" onClick={close}>Chiudi</button><button className="primary" onClick={printMemo}><Printer/> Stampa promemoria</button></div></div></div>;
 }
 
