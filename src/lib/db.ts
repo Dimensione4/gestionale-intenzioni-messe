@@ -39,6 +39,11 @@ export type NewIntention = {
 export type MassIntention = NewIntention & {
   id:number; receipt_number:number|null; receipt_status?:string|null; status:string;
 };
+export type MassMemo = {
+  id:number; offerer_first_name:string; offerer_last_name:string; offerer_phone:string;
+  offering_cents:number; payment_method:string; status:string; created_at:string; updated_at:string;
+  items:MassIntention[];
+};
 export async function loadIntentions(from:string,to:string):Promise<MassIntention[]> {
   return (await db()).select<MassIntention[]>(`SELECT i.id,i.mass_date,i.mass_time,i.offerer_first_name,i.offerer_last_name,i.offerer_phone,i.intention_text,i.remembered_person,i.offering_cents,i.payment_method,i.internal_notes,i.status,r.receipt_number,r.status AS receipt_status
     FROM mass_intentions i LEFT JOIN receipts r ON r.intention_id=i.id
@@ -58,6 +63,87 @@ export async function createIntention(v:NewIntention,maximum:number):Promise<Mas
   const receiptNumber=receipt[0]?.receipt_number;
   if(!receiptNumber)throw new Error("La ricevuta non è stata generata.");
   return {...v,id,status:"active",receipt_number:receiptNumber,receipt_status:"valid"};
+}
+
+export async function createMassMemo(values:NewIntention[],maximum:number):Promise<MassMemo> {
+  if(values.length===0)throw new Error("Aggiungi almeno una messa al promemoria.");
+  const database=await db();
+  await database.execute("BEGIN");
+  try{
+    const first=values[0];
+    const memoResult=await database.execute(`INSERT INTO mass_memos(offerer_first_name,offerer_last_name,offerer_phone,offering_cents,payment_method,created_at,updated_at) VALUES($1,$2,$3,$4,$5,datetime('now'),datetime('now'))`,[first.offerer_first_name,first.offerer_last_name,first.offerer_phone,first.offering_cents,first.payment_method]);
+    const memoId=Number(memoResult.lastInsertId);
+    const items:MassIntention[]=[];
+    for(const [index,value] of values.entries()){
+      const countRows=await database.select<{count:number}[]>("SELECT COUNT(*) AS count FROM mass_intentions WHERE status='active' AND mass_date=$1 AND mass_time=$2",[value.mass_date,value.mass_time]);
+      if((countRows[0]?.count??0)>=maximum)throw new Error(`Limite di ${maximum} intenzioni raggiunto per ${value.mass_date} alle ${value.mass_time}.`);
+      const result=await database.execute(`INSERT INTO mass_intentions(mass_date,mass_time,offerer_first_name,offerer_last_name,offerer_phone,intention_text,remembered_person,offering_cents,payment_method,internal_notes,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,datetime('now'),datetime('now'))`,[value.mass_date,value.mass_time,value.offerer_first_name,value.offerer_last_name,value.offerer_phone,value.intention_text,value.remembered_person,value.offering_cents,value.payment_method,value.internal_notes]);
+      const id=Number(result.lastInsertId);
+      await database.execute("INSERT INTO mass_memo_items(memo_id,intention_id,position,created_at) VALUES($1,$2,$3,datetime('now'))",[memoId,id,index]);
+      const receipt=await database.select<{receipt_number:number}[]>("SELECT receipt_number FROM receipts WHERE intention_id=$1",[id]);
+      items.push({...value,id,status:"active",receipt_number:receipt[0]?.receipt_number??null,receipt_status:"valid"});
+    }
+    await database.execute("COMMIT");
+    return {id:memoId,offerer_first_name:first.offerer_first_name,offerer_last_name:first.offerer_last_name,offerer_phone:first.offerer_phone,offering_cents:first.offering_cents,payment_method:first.payment_method,status:"active",created_at:"",updated_at:"",items};
+  }catch(e){
+    await database.execute("ROLLBACK").catch(()=>undefined);
+    throw e;
+  }
+}
+
+export async function loadMassMemos():Promise<MassMemo[]> {
+  const database=await db();
+  const memos=await database.select<Omit<MassMemo,"items">[]>("SELECT id,offerer_first_name,offerer_last_name,offerer_phone,offering_cents,payment_method,status,created_at,updated_at FROM mass_memos WHERE status='active' ORDER BY id DESC");
+  const items=await database.select<(MassIntention&{memo_id:number;position:number})[]>(`SELECT mi.memo_id,mi.position,i.id,i.mass_date,i.mass_time,i.offerer_first_name,i.offerer_last_name,i.offerer_phone,i.intention_text,i.remembered_person,i.offering_cents,i.payment_method,i.internal_notes,i.status,r.receipt_number,r.status AS receipt_status
+    FROM mass_memo_items mi JOIN mass_intentions i ON i.id=mi.intention_id LEFT JOIN receipts r ON r.intention_id=i.id
+    WHERE i.status='active' ORDER BY mi.memo_id,mi.position,mi.id`);
+  return memos.map(memo=>({...memo,items:items.filter(item=>item.memo_id===memo.id)}));
+}
+
+export async function updateMassMemo(memo:MassMemo,values:NewIntention[],maximum:number):Promise<MassMemo> {
+  if(values.length===0)throw new Error("Il promemoria deve avere almeno una riga.");
+  const database=await db();
+  await database.execute("BEGIN");
+  try{
+    const first=values[0];
+    await database.execute("UPDATE mass_memos SET offerer_first_name=$1,offerer_last_name=$2,offerer_phone=$3,offering_cents=$4,payment_method=$5,updated_at=datetime('now') WHERE id=$6",[first.offerer_first_name,first.offerer_last_name,first.offerer_phone,first.offering_cents,first.payment_method,memo.id]);
+    const records:MassIntention[]=[];
+    for(const [index,value] of values.entries()){
+      const existing=memo.items[index];
+      if(existing){
+        await database.execute(`UPDATE mass_intentions SET mass_date=$1,mass_time=$2,offerer_first_name=$3,offerer_last_name=$4,offerer_phone=$5,intention_text=$6,remembered_person=$7,offering_cents=$8,payment_method=$9,internal_notes=$10,updated_at=datetime('now') WHERE id=$11`,[value.mass_date,value.mass_time,value.offerer_first_name,value.offerer_last_name,value.offerer_phone,value.intention_text,value.remembered_person,value.offering_cents,value.payment_method,value.internal_notes,existing.id]);
+        await database.execute("UPDATE mass_memo_items SET position=$1 WHERE memo_id=$2 AND intention_id=$3",[index,memo.id,existing.id]);
+        records.push({...existing,...value});
+      }else{
+        const countRows=await database.select<{count:number}[]>("SELECT COUNT(*) AS count FROM mass_intentions WHERE status='active' AND mass_date=$1 AND mass_time=$2",[value.mass_date,value.mass_time]);
+        if((countRows[0]?.count??0)>=maximum)throw new Error(`Limite di ${maximum} intenzioni raggiunto per ${value.mass_date} alle ${value.mass_time}.`);
+        const result=await database.execute(`INSERT INTO mass_intentions(mass_date,mass_time,offerer_first_name,offerer_last_name,offerer_phone,intention_text,remembered_person,offering_cents,payment_method,internal_notes,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,datetime('now'),datetime('now'))`,[value.mass_date,value.mass_time,value.offerer_first_name,value.offerer_last_name,value.offerer_phone,value.intention_text,value.remembered_person,value.offering_cents,value.payment_method,value.internal_notes]);
+        const id=Number(result.lastInsertId);
+        await database.execute("INSERT INTO mass_memo_items(memo_id,intention_id,position,created_at) VALUES($1,$2,$3,datetime('now'))",[memo.id,id,index]);
+        const receipt=await database.select<{receipt_number:number}[]>("SELECT receipt_number FROM receipts WHERE intention_id=$1",[id]);
+        records.push({...value,id,status:"active",receipt_number:receipt[0]?.receipt_number??null,receipt_status:"valid"});
+      }
+    }
+    for(const removed of memo.items.slice(values.length))await database.execute("UPDATE mass_intentions SET status='deleted',delete_reason='Rimosso dal promemoria',updated_at=datetime('now') WHERE id=$1",[removed.id]);
+    await database.execute("COMMIT");
+    return {...memo,...first,items:records};
+  }catch(e){
+    await database.execute("ROLLBACK").catch(()=>undefined);
+    throw e;
+  }
+}
+
+export async function deleteMassMemo(id:number,reason="Promemoria eliminato") {
+  const database=await db();
+  await database.execute("BEGIN");
+  try{
+    await database.execute("UPDATE mass_memos SET status='deleted',updated_at=datetime('now') WHERE id=$1",[id]);
+    await database.execute("UPDATE mass_intentions SET status='deleted',delete_reason=$1,updated_at=datetime('now') WHERE id IN (SELECT intention_id FROM mass_memo_items WHERE memo_id=$2)",[reason,id]);
+    await database.execute("COMMIT");
+  }catch(e){
+    await database.execute("ROLLBACK").catch(()=>undefined);
+    throw e;
+  }
 }
 
 export async function loadArchive():Promise<MassIntention[]> {

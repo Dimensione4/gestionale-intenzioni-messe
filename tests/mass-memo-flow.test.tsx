@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Calendar, memoPrintTitle } from "../src/App";
-import type { NewIntention } from "../src/lib/db";
+import { Calendar, Memos, memoPrintTitle } from "../src/App";
+import type { MassMemo, NewIntention } from "../src/lib/db";
 
 const settings = {
   parish_name: "Parrocchia di test",
@@ -23,17 +23,29 @@ afterEach(cleanup);
 
 describe("promemoria celebrazione messe", () => {
   it("salva ogni riga come intenzione reale nella data del calendario", async () => {
-    const create = vi.fn(async (value: NewIntention) => ({
-      id: create.mock.calls.length,
-      ...value,
+    const createMemo = vi.fn(async (values: NewIntention[]): Promise<MassMemo> => ({
+      id: 12,
+      offerer_first_name: values[0].offerer_first_name,
+      offerer_last_name: values[0].offerer_last_name,
+      offerer_phone: values[0].offerer_phone,
+      offering_cents: values[0].offering_cents,
+      payment_method: values[0].payment_method,
       status: "active",
-      receipt_number: create.mock.calls.length,
-      receipt_status: "valid",
+      created_at: "",
+      updated_at: "",
+      items: values.map((value, index) => ({
+        id: index + 1,
+        ...value,
+        status: "active",
+        receipt_number: index + 1,
+        receipt_status: "valid",
+      })),
     }));
     const repository = {
       list: vi.fn(async () => []),
       settings: vi.fn(async () => settings),
-      create,
+      create: vi.fn(),
+      createMemo,
     };
 
     render(<Calendar repository={repository} />);
@@ -51,19 +63,61 @@ describe("promemoria celebrazione messe", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /salva promemoria/i }));
 
-    await waitFor(() => expect(create).toHaveBeenCalledTimes(3));
-    expect(create).toHaveBeenNthCalledWith(1, expect.objectContaining({ mass_date: "2027-04-15", remembered_person: "Famiglia Rossi", offerer_first_name: "Don", offerer_last_name: "Giacomo" }), 3);
-    expect(create).toHaveBeenNthCalledWith(2, expect.objectContaining({ mass_date: "2027-10-12", remembered_person: "Maria Bianchi" }), 3);
-    expect(create).toHaveBeenNthCalledWith(3, expect.objectContaining({ mass_date: "2027-11-16", remembered_person: "Luigi Verdi" }), 3);
+    await waitFor(() => expect(createMemo).toHaveBeenCalledTimes(1));
+    expect(createMemo).toHaveBeenCalledWith([
+      expect.objectContaining({ mass_date: "2027-04-15", remembered_person: "Famiglia Rossi", offerer_first_name: "Don", offerer_last_name: "Giacomo" }),
+      expect.objectContaining({ mass_date: "2027-10-12", remembered_person: "Maria Bianchi" }),
+      expect.objectContaining({ mass_date: "2027-11-16", remembered_person: "Luigi Verdi" }),
+    ], 3);
     expect(await screen.findByRole("dialog", { name: /promemoria pronto/i })).toHaveTextContent("Famiglia Rossi");
     expect(screen.getAllByRole("button", { name: /^chiudi$/i })).toHaveLength(1);
   });
 
   it("prepara un titolo PDF dinamico per il promemoria", () => {
     expect(memoPrintTitle([
-      { mass_date: "2027-11-16", offerer_first_name: "Don", offerer_last_name: "Giacomo" },
-      { mass_date: "2027-04-15", offerer_first_name: "Don", offerer_last_name: "Giacomo" },
+      { mass_date: "2027-11-16" },
+      { mass_date: "2027-04-15" },
     ], "Don Giacomo")).toBe("Promemoria messe - Don Giacomo - 2027-04-15");
+  });
+
+  it("mostra storico promemoria con ristampa, modifica ed eliminazione in blocco", async () => {
+    const memo: MassMemo = {
+      id: 8,
+      offerer_first_name: "Don",
+      offerer_last_name: "Giacomo",
+      offerer_phone: "333",
+      offering_cents: 1500,
+      payment_method: "Contanti",
+      status: "active",
+      created_at: "",
+      updated_at: "",
+      items: [
+        { id: 1, mass_date: "2027-04-15", mass_time: "18:00", remembered_person: "Famiglia Rossi", intention_text: "A ricordo di Famiglia Rossi", offerer_first_name: "Don", offerer_last_name: "Giacomo", offerer_phone: "333", offering_cents: 1500, payment_method: "Contanti", internal_notes: "", status: "active", receipt_number: 1, receipt_status: "valid" },
+        { id: 2, mass_date: "2027-10-12", mass_time: "10:00", remembered_person: "Maria Bianchi", intention_text: "A ricordo di Maria Bianchi", offerer_first_name: "Don", offerer_last_name: "Giacomo", offerer_phone: "333", offering_cents: 1500, payment_method: "Contanti", internal_notes: "nota", status: "active", receipt_number: 2, receipt_status: "valid" },
+      ],
+    };
+    const remove = vi.fn(async () => undefined);
+    const repository = { list: vi.fn(async () => [memo]), remove };
+
+    render(<Memos repository={repository} intentionRepository={{ list: vi.fn(), settings: vi.fn(async () => settings), create: vi.fn() }} />);
+
+    expect(await screen.findByRole("heading", { name: /storico promemoria/i })).toBeInTheDocument();
+    expect(screen.getByText("Don Giacomo")).toBeInTheDocument();
+    expect(screen.getByText("Famiglia Rossi")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /stampa/i }));
+    expect(await screen.findByRole("dialog", { name: /promemoria pronto/i })).toHaveTextContent("Maria Bianchi");
+    fireEvent.click(screen.getByRole("button", { name: /^chiudi$/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /modifica/i }));
+    expect(await screen.findByRole("dialog", { name: /modifica promemoria/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /chiudi/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /elimina tutto/i }));
+    fireEvent.change(await screen.findByLabelText(/motivo/i), { target: { value: "test" } });
+    fireEvent.click(screen.getByRole("button", { name: /elimina promemoria/i }));
+
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(8, "test"));
   });
 
   it("mantiene la modale larga, azioni distanziate e cestino compatto", () => {

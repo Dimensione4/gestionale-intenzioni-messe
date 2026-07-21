@@ -257,6 +257,19 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .memo-print table { width: 100%; border-collapse: collapse; font: 15px Arial, sans-serif; }
 .memo-print th, .memo-print td { padding: 10px; border: 1px solid #333; text-align: left; vertical-align: top; }
 .memo-print th { background: #f1f1f1; text-transform: uppercase; font-size: 13px; }
+.memo-history { display: grid; gap: 18px; }
+.memo-card { display: grid; grid-template-columns: minmax(230px, .75fr) minmax(360px, 1fr) auto; gap: 20px; align-items: start; padding: 20px; background: #fff; border: 1px solid var(--border); border-radius: 14px; }
+.memo-card-summary h2 { margin: 4px 0 8px; color: var(--primary); }
+.memo-card-summary p { margin: 0 0 8px; color: var(--muted); font-weight: 700; }
+.memo-card-summary small { color: var(--muted); }
+.memo-card-kicker { color: #7a641f; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; }
+.memo-card-items { display: grid; max-height: 230px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.memo-card-items > div { display: grid; gap: 3px; padding: 11px 13px; border-bottom: 1px solid var(--border); }
+.memo-card-items > div:last-child { border-bottom: 0; }
+.memo-card-items strong { color: var(--ink); }
+.memo-card-items span { color: var(--primary); font-weight: 800; }
+.memo-card-items em { color: var(--muted); font-style: normal; }
+.memo-card-actions { display: grid; gap: 10px; min-width: 178px; }
 @media (max-width: 1100px) {
   .shell { grid-template-columns: 230px minmax(0, 1fr); }
   .settings-layout { grid-template-columns: 1fr; }
@@ -266,6 +279,8 @@ section > header { display: flex; justify-content: space-between; align-items: c
   .monthly-list-head, .monthly-list > button { grid-template-columns: 135px 70px minmax(200px, 1fr) 110px; font-size: 16px; }
   .archive-filters { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
   .backup-grid { grid-template-columns: 1fr; }
+  .memo-card { grid-template-columns: 1fr; }
+  .memo-card-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .month { grid-template-columns: 1fr; }
   .month button, .month .month-prev, .month .month-next { justify-self: stretch; width: 100%; }
   .memo-rows-head { display: none; }

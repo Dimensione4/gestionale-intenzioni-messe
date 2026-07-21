@@ -4,11 +4,11 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { Archive as ArchiveIcon, ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Church, Cloud, Download, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
+import { Archive as ArchiveIcon, ArrowLeft, BookOpen, CalendarDays, CheckCircle2, Church, Cloud, Download, FileText, Grid3X3, History, List, LogOut, Palette, Pencil, Plus, Printer, RefreshCw, RotateCcw, Save, Settings as Cog, Shield, Trash2, X } from "lucide-react";
 import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
-import { cancelReceipt, createBackup, createIntention, deleteIntention, loadArchive, loadAuditLogs, loadIntentions, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention } from "./lib/db";
-import type { AuditLog, MassIntention, MassScheduleRule, NewIntention, ParishSettings } from "./lib/db";
+import { cancelReceipt, createBackup, createIntention, createMassMemo, deleteIntention, deleteMassMemo, loadArchive, loadAuditLogs, loadIntentions, loadMassMemos, loadSchedules, loadSettings, restoreIntention, saveSchedules, saveSettings, updateIntention, updateMassMemo } from "./lib/db";
+import type { AuditLog, MassIntention, MassMemo, MassScheduleRule, NewIntention, ParishSettings } from "./lib/db";
 import { getCelebrationOfDay } from "./lib/saints";
 
 type SettingsSection="parish"|"schedules"|"receipt"|"appearance"|"user"|"backup";
@@ -17,7 +17,7 @@ type GoogleDriveUploadResult={id:string;name:string;web_view_link?:string|null;f
 
 export function App() {
   const [authenticated,setAuthenticated]=useState(false), [setup,setSetup]=useState(false), [loading,setLoading]=useState(true);
-  const [page,setPage]=useState<"calendar"|"archive"|"settings"|"tutorial">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
+  const [page,setPage]=useState<"calendar"|"memos"|"archive"|"settings"|"tutorial">("calendar"); const [settings,setSettings]=useState<ParishSettings|null>(null);
   const [settingsStart,setSettingsStart]=useState<SettingsSection>("parish");
   const [availableUpdate,setAvailableUpdate]=useState<Update|null>(null),[tutorialOpen,setTutorialOpen]=useState(false);
   useEffect(()=>{Promise.all([invoke<boolean>("has_password"),invoke<boolean>("has_remembered_login")]).then(([hasPassword,remembered])=>{setSetup(!hasPassword);if(hasPassword&&remembered)setAuthenticated(true)}).finally(()=>setLoading(false))},[]);
@@ -31,11 +31,12 @@ export function App() {
   const openTutorialSection=(target:TutorialTarget)=>{if(target.page==="settings")setSettingsStart(target.settingsStart??"parish");setPage(target.page)};
   return <div className="shell"><aside><div className="brand">{settings?.logo_data_url?<img src={settings.logo_data_url} alt="Logo parrocchia"/>:<Church size={34}/>}<span>{settings?.parish_name??"Gestionale Messe"}</span></div>
     <nav><button className={page==="calendar"?"active":""} onClick={()=>setPage("calendar")}><CalendarDays/> Calendario</button>
+    <button className={page==="memos"?"active":""} onClick={()=>setPage("memos")}><FileText/> Promemoria</button>
     <button className={page==="archive"?"active":""} onClick={()=>setPage("archive")}><ArchiveIcon/> Archivio</button>
     <button className={page==="tutorial"?"active":""} onClick={()=>setPage("tutorial")}><BookOpen/> Tutorial</button>
     <button className={page==="settings"?"active":""} onClick={()=>{setSettingsStart("parish");setPage("settings")}}><Cog/> Impostazioni</button></nav>
     <button className="logout" onClick={async()=>{await invoke("clear_remembered_login").catch(()=>undefined);setAuthenticated(false)}}><LogOut/> Esci</button></aside>
-    <main>{page==="calendar"?<Calendar/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:page==="tutorial"?<TutorialPage openSection={openTutorialSection}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
+    <main>{page==="calendar"?<Calendar/>:page==="memos"?<Memos/>:page==="archive"?<Archive settings={settings} configureReceipt={()=>{setSettingsStart("receipt");setPage("settings")}}/>:page==="tutorial"?<TutorialPage openSection={openTutorialSection}/>:<Settings value={settings} changed={setSettings} initialSection={settingsStart}/>}<AppFooter/></main>
     {tutorialOpen&&<TutorialOverlay close={()=>{localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}} openTutorial={()=>{setPage("tutorial");localStorage.setItem("tutorial-completed","1");setTutorialOpen(false)}}/>}
     {availableUpdate&&<UpdateDialog update={availableUpdate} close={()=>setAvailableUpdate(null)}/>}</div>;
 }
@@ -176,8 +177,8 @@ function Login({setup,done}:{setup:boolean;done:()=>void}) {
     {error&&<p className="error" role="alert">{error}</p>}<button className="primary">{setup?"Crea password ed entra":"Entra"}</button></form></section></main>;
 }
 
-type IntentionRepository={list:typeof loadIntentions;settings:typeof loadSettings;create:typeof createIntention;update?:typeof updateIntention;schedules?:typeof loadSchedules};
-const defaultRepository:IntentionRepository={list:loadIntentions,settings:loadSettings,create:createIntention,update:updateIntention,schedules:loadSchedules};
+type IntentionRepository={list:typeof loadIntentions;settings:typeof loadSettings;create:typeof createIntention;createMemo?:typeof createMassMemo;update?:typeof updateIntention;schedules?:typeof loadSchedules};
+const defaultRepository:IntentionRepository={list:loadIntentions,settings:loadSettings,create:createIntention,createMemo:createMassMemo,update:updateIntention,schedules:loadSchedules};
 
 export function Calendar({repository=defaultRepository}:{repository?:IntentionRepository}){
   const [month,setMonth]=useState(new Date()),[view,setView]=useState<"calendar"|"list">("calendar"),[printOpen,setPrintOpen]=useState(false),[memoOpen,setMemoOpen]=useState(false),[selectedDay,setSelectedDay]=useState<string|null>(null),[addRequest,setAddRequest]=useState<{date:string;time?:string}|null>(null),[editing,setEditing]=useState<MassIntention|null>(null),[intentions,setIntentions]=useState<MassIntention[]>([]),[schedules,setSchedules]=useState<MassScheduleRule[]>([]),[notice,setNotice]=useState(""),[loadError,setLoadError]=useState("");
@@ -197,7 +198,7 @@ export function Calendar({repository=defaultRepository}:{repository?:IntentionRe
     <b>{format(day,"d")}</b>{celebration&&<em className="calendar-saint">{celebration}</em>}<span className="day-lines">{items.map(i=><small key={i.id} className="filled"><strong>{i.mass_time}</strong> <span>{intentionCalendarLabel(i)}</span></small>)}{items.length===0&&times.map(time=><small key={time} className="empty"><strong>{time}</strong> <span>0 intenzioni</span></small>)}{items.length===0&&times.length===0&&<small className="empty">Nessuna messa</small>}</span></button>})}</div></>:<MonthlyList days={days} intentions={intentions} schedules={schedules} openDay={setSelectedDay}/>}</div>
     {notice&&<p className="toast" role="status">{notice}</p>}
     {addRequest&&<IntentionDialog initialDate={addRequest.date} repository={repository} close={()=>setAddRequest(null)} saved={record=>{setAddRequest(null);setIntentions(items=>[...items,record].sort((a,b)=>(a.mass_date+a.mass_time).localeCompare(b.mass_date+b.mass_time)));setNotice(`Intenzione salvata. Ricevuta n. ${record.receipt_number}.`);}}/>}
-    {memoOpen&&<MassMemoDialog repository={repository} close={()=>setMemoOpen(false)} saved={records=>{setMemoOpen(false);setNotice(`Promemoria salvato: ${records.length} intenzioni inserite nel calendario.`);refresh()}}/>}
+    {memoOpen&&<MassMemoDialog repository={repository} close={()=>setMemoOpen(false)} saved={memo=>{setMemoOpen(false);setNotice(`Promemoria salvato: ${memo.items.length} intenzioni inserite nel calendario.`);refresh()}}/>}
     {printOpen&&<PrintIntentionsDialog month={month} repository={repository} close={()=>setPrintOpen(false)}/>}
   </section>;
 }
@@ -205,10 +206,10 @@ export function Calendar({repository=defaultRepository}:{repository?:IntentionRe
 type MemoRow={mass_date:string;mass_time:string;remembered_person:string;intention_text:string;internal_notes:string};
 const emptyMemoRow=():MemoRow=>({mass_date:"",mass_time:"18:00",remembered_person:"",intention_text:"",internal_notes:""});
 
-function MassMemoDialog({repository,close,saved}:{repository:IntentionRepository;close:()=>void;saved:(records:MassIntention[])=>void}){
-  const [offererFirst,setOffererFirst]=useState(""),[offererLast,setOffererLast]=useState(""),[offererPhone,setOffererPhone]=useState(""),[offering,setOffering]=useState(1500),[payment,setPayment]=useState("Contanti");
-  const [rows,setRows]=useState<MemoRow[]>([{...emptyMemoRow()},{...emptyMemoRow()},{...emptyMemoRow()}]),[maximum,setMaximum]=useState(3),[saving,setSaving]=useState(false),[error,setError]=useState(""),[created,setCreated]=useState<MassIntention[]>([]);
-  useEffect(()=>{repository.settings().then(settings=>{setMaximum(settings.max_intentions_per_mass);setOffering(settings.default_offering_cents)})},[repository]);
+function MassMemoDialog({repository,close,saved,initialMemo}:{repository:IntentionRepository;close:()=>void;saved:(memo:MassMemo)=>void;initialMemo?:MassMemo}){
+  const [offererFirst,setOffererFirst]=useState(initialMemo?.offerer_first_name??""),[offererLast,setOffererLast]=useState(initialMemo?.offerer_last_name??""),[offererPhone,setOffererPhone]=useState(initialMemo?.offerer_phone??""),[offering,setOffering]=useState(initialMemo?.offering_cents??1500),[payment,setPayment]=useState(initialMemo?.payment_method??"Contanti");
+  const [rows,setRows]=useState<MemoRow[]>(initialMemo?initialMemo.items.map(item=>({mass_date:item.mass_date,mass_time:item.mass_time,remembered_person:item.remembered_person,intention_text:item.intention_text,internal_notes:item.internal_notes})):[{...emptyMemoRow()},{...emptyMemoRow()},{...emptyMemoRow()}]),[maximum,setMaximum]=useState(3),[saving,setSaving]=useState(false),[error,setError]=useState(""),[created,setCreated]=useState<MassMemo|null>(null);
+  useEffect(()=>{repository.settings().then(settings=>{setMaximum(settings.max_intentions_per_mass);if(!initialMemo)setOffering(settings.default_offering_cents)})},[repository,initialMemo]);
   const updateRow=(index:number,key:keyof MemoRow,value:string)=>setRows(current=>current.map((row,i)=>i===index?{...row,[key]:value}:row));
   const removeRow=(index:number)=>setRows(current=>current.filter((_,i)=>i!==index));
   async function submit(e:React.FormEvent){
@@ -218,9 +219,7 @@ function MassMemoDialog({repository,close,saved}:{repository:IntentionRepository
     if(filled.length===0)return setError("Aggiungi almeno una messa con data, ora e persona ricordata o intenzione.");
     setSaving(true);
     try{
-      const records:MassIntention[]=[];
-      for(const row of filled){
-        records.push(await repository.create({
+      const values=filled.map(row=>({
           mass_date:row.mass_date,
           mass_time:row.mass_time,
           offerer_first_name:offererFirst,
@@ -231,15 +230,14 @@ function MassMemoDialog({repository,close,saved}:{repository:IntentionRepository
           offering_cents:offering,
           payment_method:payment,
           internal_notes:row.internal_notes,
-        },maximum));
-      }
-      setCreated(records);
+        }));
+      setCreated(initialMemo?await updateMassMemo(initialMemo,values,maximum):await (repository.createMemo??createMassMemo)(values,maximum));
     }catch(e){setError(typeof e==="string"?e:e instanceof Error?e.message:"Salvataggio del promemoria non riuscito.")}
     finally{setSaving(false)}
   }
-  if(created.length>0)return <MassMemoPreview records={created} offerer={`${offererFirst} ${offererLast}`.trim()} phone={offererPhone} close={()=>saved(created)}/>;
+  if(created)return <MassMemoPreview memo={created} close={()=>saved(created)}/>;
   return <div className="modal-backdrop"><div className="dialog memo-dialog" role="dialog" aria-modal="true" aria-labelledby="memo-title">
-    <div className="dialog-head"><div><p className="eyebrow">Inserimento multiplo</p><h2 id="memo-title">Nuovo promemoria celebrazione S. Messa</h2></div><button type="button" onClick={close}>Chiudi ×</button></div>
+    <div className="dialog-head"><div><p className="eyebrow">Inserimento multiplo</p><h2 id="memo-title">{initialMemo?"Modifica promemoria":"Nuovo promemoria celebrazione S. Messa"}</h2></div><button type="button" onClick={close}>Chiudi ×</button></div>
     <form onSubmit={submit}><p className="page-subtitle">Ogni riga verrà salvata come intenzione reale nella data corretta del calendario.</p><div className="form-grid">
       <label>Nome offerente<input value={offererFirst} onChange={e=>setOffererFirst(e.target.value)}/></label><label>Cognome offerente<input value={offererLast} onChange={e=>setOffererLast(e.target.value)}/></label>
       <label>Telefono (facoltativo)<input value={offererPhone} onChange={e=>setOffererPhone(e.target.value)}/></label><label>Offerta per messa (€)<input required type="number" min="0" step=".01" value={offering/100} onChange={e=>setOffering(Math.round(+e.target.value*100))}/></label>
@@ -257,12 +255,13 @@ function MassMemoDialog({repository,close,saved}:{repository:IntentionRepository
   </div></div>;
 }
 
-export function memoPrintTitle(records:Pick<MassIntention,"mass_date"|"offerer_first_name"|"offerer_last_name">[],offerer:string){
+export function memoPrintTitle(records:Pick<MassIntention,"mass_date">[],offerer:string){
   const firstDate=records.map(row=>row.mass_date).sort()[0]??format(new Date(),"yyyy-MM-dd");
   return `Promemoria messe - ${offerer||"offerente"} - ${firstDate}`.replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
 }
 
-function MassMemoPreview({records,offerer,phone,close}:{records:MassIntention[];offerer:string;phone:string;close:()=>void}){
+function MassMemoPreview({memo,close}:{memo:MassMemo;close:()=>void}){
+  const records=memo.items,offerer=`${memo.offerer_first_name} ${memo.offerer_last_name}`.trim(),phone=memo.offerer_phone;
   function printMemo(){
     const previousTitle=document.title;
     document.title=memoPrintTitle(records,offerer);
@@ -273,6 +272,33 @@ function MassMemoPreview({records,offerer,phone,close}:{records:MassIntention[];
   return <div className="modal-backdrop"><div className="dialog memo-dialog memo-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="memo-preview-title"><div className="dialog-head no-print"><div><p className="eyebrow">Documento</p><h2 id="memo-preview-title">Promemoria pronto</h2></div></div>
     <div className="memo-print"><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table><thead><tr><th>Giorno</th><th>Ora</th><th>A ricordo di…</th><th>Note</th></tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td></tr>)}</tbody></table></div>
     <div className="actions memo-actions no-print"><button className="secondary-button" onClick={close}>Chiudi</button><button className="primary" onClick={printMemo}><Printer/> Stampa promemoria</button></div></div></div>;
+}
+
+type MemoRepository={list:typeof loadMassMemos;remove:typeof deleteMassMemo};
+const defaultMemoRepository:MemoRepository={list:loadMassMemos,remove:deleteMassMemo};
+
+export function Memos({repository=defaultMemoRepository,intentionRepository=defaultRepository}:{repository?:MemoRepository;intentionRepository?:IntentionRepository}){
+  const [memos,setMemos]=useState<MassMemo[]>([]),[preview,setPreview]=useState<MassMemo|null>(null),[editing,setEditing]=useState<MassMemo|null>(null),[deleting,setDeleting]=useState<MassMemo|null>(null),[notice,setNotice]=useState(""),[error,setError]=useState("");
+  const refresh=()=>repository.list().then(items=>{setMemos(items);setError("")}).catch(e=>setError(`Impossibile leggere i promemoria: ${String(e)}`));
+  useEffect(()=>{refresh()},[]);
+  const dateRange=(memo:MassMemo)=>{
+    const dates=memo.items.map(item=>item.mass_date).sort();
+    if(dates.length===0)return "Nessuna data collegata";
+    const first=new Date(`${dates[0]}T12:00:00`).toLocaleDateString("it-IT");
+    const last=new Date(`${dates[dates.length-1]}T12:00:00`).toLocaleDateString("it-IT");
+    return first===last?first:`dal ${first} al ${last}`;
+  };
+  return <section><header><div><p className="eyebrow">Documenti</p><h1>Storico promemoria</h1><p className="page-subtitle">Promemoria già creati, pronti da ristampare, modificare o rimuovere in blocco.</p></div></header>
+    {notice&&<p className="toast" role="status">{notice}</p>}{error&&<p className="error" role="alert">{error}</p>}
+    <div className="memo-history card">{memos.length===0?<div className="empty-state"><h2>Nessun promemoria salvato</h2><p>Dal calendario puoi creare un “Nuovo promemoria”: verrà salvato qui e le sue righe entreranno anche nei giorni corretti del calendario.</p></div>:memos.map(memo=>{const offerer=`${memo.offerer_first_name} ${memo.offerer_last_name}`.trim()||"Offerente non indicato";return <article key={memo.id} className="memo-card">
+      <div className="memo-card-summary"><span className="memo-card-kicker">Promemoria n. {memo.id}</span><h2>{offerer}</h2><p>{memo.items.length} {memo.items.length===1?"messa collegata":"messe collegate"} · {dateRange(memo)}</p>{memo.offerer_phone&&<small>Telefono: {memo.offerer_phone}</small>}</div>
+      <div className="memo-card-items">{memo.items.map(item=><div key={item.id}><strong>{new Date(`${item.mass_date}T12:00:00`).toLocaleDateString("it-IT")} · {item.mass_time}</strong><span>{item.remembered_person||item.intention_text||"Intenzione senza testo"}</span>{item.internal_notes&&<em>{item.internal_notes}</em>}</div>)}</div>
+      <div className="memo-card-actions"><button className="preview-action" onClick={()=>setPreview(memo)}><Printer/> Stampa</button><button className="secondary-button" onClick={()=>setEditing(memo)}><Pencil/> Modifica</button><button className="delete-action" onClick={()=>setDeleting(memo)}><Trash2/> Elimina tutto</button></div>
+    </article>})}</div>
+    {preview&&<MassMemoPreview memo={preview} close={()=>setPreview(null)}/>}
+    {editing&&<MassMemoDialog initialMemo={editing} repository={intentionRepository} close={()=>setEditing(null)} saved={async memo=>{setEditing(null);setNotice(`Promemoria aggiornato: ${memo.items.length} intenzioni collegate al calendario.`);await refresh()}}/>}
+    {deleting&&<ReasonDialog title="Eliminare questo promemoria?" body="Il promemoria verrà tolto dallo storico operativo e tutte le intenzioni collegate verranno eliminate dal calendario in un colpo solo." label="Motivo dell’eliminazione" confirmLabel="Elimina promemoria" close={()=>setDeleting(null)} confirmed={async reason=>{await repository.remove(deleting.id,reason);setDeleting(null);setNotice("Promemoria eliminato insieme alle intenzioni collegate.");await refresh()}}/>}
+  </section>;
 }
 
 function MonthlyList({days,intentions,schedules,openDay}:{days:Date[];intentions:MassIntention[];schedules:MassScheduleRule[];openDay:(date:string)=>void}){
