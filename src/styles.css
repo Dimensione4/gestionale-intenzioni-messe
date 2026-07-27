@@ -171,6 +171,11 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .receipt-options legend { padding: 0 8px; font-weight: 700; }
 .receipt-options label { min-height: 48px; display: flex; align-items: center; gap: 10px; font-weight: 500; }
 .receipt-options input { width: 22px; min-height: 22px; }
+.memo-print-config { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(360px, 1fr); gap: 22px; align-items: start; margin: 18px 0 6px; }
+.memo-print-config label { display: grid; gap: 10px; font-weight: 700; }
+.memo-print-config input[type="range"] { min-height: 36px; padding: 0; accent-color: var(--primary); }
+.memo-settings-preview { display: grid; place-items: start center; padding: 18px; background: #f4f5f6; border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; }
+.memo-settings-preview .memo-print.thermal { margin: 0 auto; box-shadow: 0 0 0 1px #d9d9d9, 0 10px 24px #0001; }
 .danger-zone { margin-top: 36px; padding: 22px; border: 1px solid #d7a4a7; border-radius: 10px; background: #fff7f7; }
 .danger-zone h3 { color: var(--danger); }
 .schedule-editor { display: grid; gap: 12px; margin: 24px 0; }
@@ -260,7 +265,7 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .memo-preview-dialog .memo-actions { margin-top: 30px; }
 .memo-print { color: #111; background: #fff; }
 .memo-print.a4 { width: 100%; }
-.memo-print.thermal { width: 72mm; max-width: 100%; margin-inline: auto; font-size: 10px; }
+.memo-print.thermal { width: 72mm; max-width: 100%; margin-inline: auto; font-size: calc(10px * var(--memo-font-scale, 1.15)); }
 .memo-print table { margin-top: 20px; }
 .memo-print header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #111; }
 .memo-print header svg { width: 42px; height: 42px; }
@@ -277,15 +282,15 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .memo-print.thermal table.with-offering .memo-person-col { width: 23mm; }
 .memo-print.thermal table.with-offering .memo-notes-col { width: 13mm; }
 .memo-print.thermal .memo-offering-col { width: 10mm; }
-.memo-print.thermal table { font-size: 8.2px; line-height: 1.16; }
+.memo-print.thermal table { font-size: calc(8.2px * var(--memo-font-scale, 1.15)); line-height: 1.16; }
 .memo-print.thermal th, .memo-print.thermal td { padding: 3px 2px; overflow-wrap: anywhere; }
-.memo-print.thermal th { font-size: 6.8px; white-space: nowrap; letter-spacing: 0; }
+.memo-print.thermal th { font-size: calc(6.8px * var(--memo-font-scale, 1.15)); white-space: nowrap; letter-spacing: 0; }
 .memo-print.thermal td:nth-child(1), .memo-print.thermal td:nth-child(2), .memo-print.thermal td:last-child { white-space: nowrap; }
 .memo-print.thermal td:nth-child(3) { font-weight: 700; }
 .memo-print.thermal header { gap: 8px; margin-bottom: 10px; padding-bottom: 8px; }
 .memo-print.thermal header svg { width: 28px; height: 28px; }
-.memo-print.thermal header span { font-size: 10px; }
-.memo-print.thermal header strong { font-size: 15px; }
+.memo-print.thermal header span { font-size: calc(10px * var(--memo-font-scale, 1.15)); }
+.memo-print.thermal header strong { font-size: calc(15px * var(--memo-font-scale, 1.15)); }
 .memo-history { display: grid; gap: 18px; }
 .memo-card { display: grid; grid-template-columns: minmax(230px, .75fr) minmax(360px, 1fr) auto; gap: 20px; align-items: start; padding: 20px; background: #fff; border: 1px solid var(--border); border-radius: 14px; }
 .memo-card-summary h2 { margin: 4px 0 8px; color: var(--primary); }
@@ -308,6 +313,7 @@ section > header { display: flex; justify-content: space-between; align-items: c
   .monthly-list-head, .monthly-list > button { grid-template-columns: 135px 70px minmax(200px, 1fr) 110px; font-size: 16px; }
   .archive-filters { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
   .backup-grid { grid-template-columns: 1fr; }
+  .memo-print-config { grid-template-columns: 1fr; }
   .memo-card { grid-template-columns: 1fr; }
   .memo-card-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .month { grid-template-columns: 1fr; }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -261,6 +261,9 @@ export function memoPrintTitle(records:Pick<MassIntention,"mass_date">[],offerer
 function MassMemoPreview({memo,close,back,confirm,saving=false,error=""}:{memo:MassMemo;close:()=>void;back?:()=>void;confirm?:()=>void|Promise<void>;saving?:boolean;error?:string}){
   const records=memo.items,offerer=`${memo.offerer_first_name} ${memo.offerer_last_name}`.trim(),phone=memo.offerer_phone;
   const [printFormat,setPrintFormat]=useState<PrintFormat>("a4"),[showOffering,setShowOffering]=useState(memo.offering_cents>0);
+  const [settings,setSettings]=useState<ParishSettings|null>(null);
+  useEffect(()=>{loadSettings().then(setSettings).catch(()=>undefined)},[]);
+  const memoStyle={"--memo-font-scale":(settings?.memo_thermal_font_scale??115)/100} as CSSProperties;
   function printMemo(){
     const previousTitle=document.title;
     document.title=memoPrintTitle(records,offerer);
@@ -269,10 +272,10 @@ function MassMemoPreview({memo,close,back,confirm,saving=false,error=""}:{memo:M
     requestAnimationFrame(()=>{window.print();setTimeout(restoreTitle,1000)});
   }
   return <div className="modal-backdrop"><div className="dialog memo-dialog memo-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="memo-preview-title">
-    <style data-memo-page-size>{`@media print { @page { size: ${printFormat==="a4"?"A4 landscape":"80mm 200mm"}; margin: ${printFormat==="a4"?"12mm":"3mm"}; } }`}</style>
+    <style data-memo-page-size>{`@media print { @page { size: ${printFormat==="a4"?"A4 landscape":"80mm 200mm"}; margin: ${printFormat==="a4"?"12mm":"4mm"}; } }`}</style>
     <div className="dialog-head no-print"><div><p className="eyebrow">Documento</p><h2 id="memo-preview-title">Promemoria pronto</h2></div></div>
     <div className="print-options memo-print-options no-print"><fieldset><legend>Formato stampa</legend><label><input type="radio" checked={printFormat==="a4"} onChange={()=>setPrintFormat("a4")}/> Foglio A4</label><label><input type="radio" checked={printFormat==="thermal"} onChange={()=>setPrintFormat("thermal")}/> Stampantina 80 mm</label></fieldset><label className="check-field"><input type="checkbox" checked={showOffering} onChange={e=>setShowOffering(e.target.checked)}/> Mostra quota/offerta</label></div>
-    <div className={`memo-print ${printFormat}`}><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table className={showOffering?"with-offering":""}><colgroup><col className="memo-date-col"/><col className="memo-time-col"/><col className="memo-person-col"/><col className="memo-notes-col"/>{showOffering&&<col className="memo-offering-col"/>}</colgroup><thead><tr><th>{printFormat==="thermal"?"Data":"Giorno"}</th><th>Ora</th><th>{printFormat==="thermal"?"Ricordo":"A ricordo di…"}</th><th>Note</th>{showOffering&&<th>Quota</th>}</tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td>{showOffering&&<td>€ {(record.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table></div>
+    <div className={`memo-print ${printFormat}`} style={memoStyle}><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>{offerer}</strong>{phone&&<small>{phone}</small>}</div></header><table className={showOffering?"with-offering":""}><colgroup><col className="memo-date-col"/><col className="memo-time-col"/><col className="memo-person-col"/><col className="memo-notes-col"/>{showOffering&&<col className="memo-offering-col"/>}</colgroup><thead><tr><th>{printFormat==="thermal"?"Data":"Giorno"}</th><th>Ora</th><th>{printFormat==="thermal"?"Ricordo":"A ricordo di…"}</th><th>Note</th>{showOffering&&<th>Quota</th>}</tr></thead><tbody>{records.map(record=><tr key={record.id}><td>{new Date(`${record.mass_date}T12:00:00`).toLocaleDateString("it-IT")}</td><td>{record.mass_time}</td><td>{record.remembered_person||record.intention_text}</td><td>{record.internal_notes}</td>{showOffering&&<td>€ {(record.offering_cents/100).toFixed(2)}</td>}</tr>)}</tbody></table></div>
     {error&&<p className="error no-print" role="alert">{error}</p>}
     <div className="actions memo-actions no-print">{back&&<button className="secondary-button" onClick={back}><ArrowLeft/> Indietro e modifica</button>}{confirm?<button className="primary" disabled={saving} onClick={confirm}><Save/> {saving?"Salvataggio…":"Conferma e salva"}</button>:<><button className="secondary-button" onClick={close}>Chiudi</button><button className="primary" onClick={printMemo}><Printer/> Stampa promemoria</button></>}</div></div></div>;
 }
@@ -523,8 +526,19 @@ function ReceiptSettings({form,field,saved,message}:{form:ParishSettings;field:(
       <label>Larghezza personalizzata etichetta (mm)<input type="number" min="0" max="120" value={form.receipt_custom_width_mm??0} onChange={e=>field("receipt_custom_width_mm",+e.target.value)} placeholder="0 = usa 58/80"/></label>
       <label>Altezza personalizzata etichetta (mm)<input type="number" min="0" max="300" value={form.receipt_custom_height_mm??0} onChange={e=>field("receipt_custom_height_mm",+e.target.value)} placeholder="0 = altezza automatica"/></label></div>
     <p className="hint">Per una Brother a etichette adesive prova prima 62 mm di larghezza e 100-120 mm di altezza, poi stampa al 100% senza adattare alla pagina.</p>
+    <hr className="section-rule"/>
+    <h3>Promemoria stampantina 80 mm</h3><p>Regola la grandezza delle scritte del pro-memoria. Il formato resta centrato su 80 mm con margini uguali a sinistra e destra.</p>
+    <div className="memo-print-config">
+      <label>Grandezza scritte: {form.memo_thermal_font_scale??115}%<input type="range" min="90" max="135" step="5" value={form.memo_thermal_font_scale??115} onChange={e=>field("memo_thermal_font_scale",+e.target.value)}/></label>
+      <MemoThermalSettingsPreview scale={form.memo_thermal_font_scale??115}/>
+    </div>
     {message&&<p className="success">{message}</p>}<div className="settings-actions"><button className="primary" onClick={saved}><Save/> Salva configurazione ricevuta</button></div>
   </div>;
+}
+
+function MemoThermalSettingsPreview({scale}:{scale:number}){
+  const style={"--memo-font-scale":scale/100} as CSSProperties;
+  return <div className="memo-settings-preview"><div className="memo-print thermal" style={style}><header><Church/><div><span>Pro-memoria Celebrazione S. Messa</span><strong>Paolo Paolo</strong><small>3208321238</small></div></header><table className="with-offering"><colgroup><col className="memo-date-col"/><col className="memo-time-col"/><col className="memo-person-col"/><col className="memo-notes-col"/><col className="memo-offering-col"/></colgroup><thead><tr><th>Data</th><th>Ora</th><th>Ricordo</th><th>Note</th><th>Quota</th></tr></thead><tbody><tr><td>27/07/2026</td><td>20:30</td><td>Maria e Antonietta</td><td></td><td>€ 15.00</td></tr><tr><td>29/07/2026</td><td>20:30</td><td>Tina</td><td></td><td>€ 15.00</td></tr></tbody></table></div></div>;
 }
 
 function AppearanceSettings({form,field,saved,message}:{form:ParishSettings;field:(key:keyof ParishSettings,val:string|number)=>void;saved:()=>Promise<void>;message:string}){

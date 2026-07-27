@@ -1,6 +1,6 @@
 [package]
 name="gestionale-intenzioni-messe"
-version="0.1.13"
+version="0.1.14"
 description="Gestionale desktop locale per le intenzioni delle messe"
 edition="2021"
 [lib]

@@ -708,6 +708,10 @@ fn current_migration_checksums() -> Vec<(i64, [u8; 48])> {
             include_str!("../migrations/008_receipt_custom_label.sql"),
         ),
         (9, include_str!("../migrations/009_mass_memos.sql")),
+        (
+            10,
+            include_str!("../migrations/010_memo_print_settings.sql"),
+        ),
     ]
     .into_iter()
     .map(|(version, sql)| {
@@ -836,6 +840,12 @@ pub fn run() {
                             version: 9,
                             description: "mass memo history",
                             sql: include_str!("../migrations/009_mass_memos.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 10,
+                            description: "memo print settings",
+                            sql: include_str!("../migrations/010_memo_print_settings.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
                     ],

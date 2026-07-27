@@ -9,9 +9,10 @@ export type ParishSettings = {
   receipt_show_address?:number; receipt_show_contacts?:number; receipt_show_priest?:number; receipt_show_offerer?:number;
   receipt_show_intention?:number; receipt_show_mass?:number; receipt_show_offering?:number; receipt_custom_message?:string;
   receipt_custom_width_mm?:number; receipt_custom_height_mm?:number;
+  memo_thermal_font_scale?:number;
   backup_frequency_hours?:6|12|24; online_backup_enabled?:number; online_backup_provider?:string; online_backup_account_email?:string; online_backup_encryption_enabled?:number;
 };
-const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_show_address:1,receipt_show_contacts:1,receipt_show_priest:1,receipt_show_offerer:1,receipt_show_intention:1,receipt_show_mass:1,receipt_show_offering:1,receipt_custom_message:"Grazie",receipt_custom_width_mm:0,receipt_custom_height_mm:0,backup_frequency_hours:6,online_backup_enabled:0,online_backup_provider:"google_drive",online_backup_account_email:"",online_backup_encryption_enabled:1 };
+const defaults: ParishSettings = { parish_name: "La tua Parrocchia", address: "", phone: "", email: "", default_offering_cents: 1500, max_intentions_per_mass: 3, receipt_paper_size: "58mm", priest_first_name:"",priest_last_name:"",primary_color:"#173D61",accent_color:"#B69943",logo_data_url:"",receipt_show_address:1,receipt_show_contacts:1,receipt_show_priest:1,receipt_show_offerer:1,receipt_show_intention:1,receipt_show_mass:1,receipt_show_offering:1,receipt_custom_message:"Grazie",receipt_custom_width_mm:0,receipt_custom_height_mm:0,memo_thermal_font_scale:115,backup_frequency_hours:6,online_backup_enabled:0,online_backup_provider:"google_drive",online_backup_account_email:"",online_backup_encryption_enabled:1 };
 let connection: Promise<Database> | undefined;
 const db = () => connection ??= Database.load("sqlite:gestionale.sqlite").then(async database=>{
   await database.execute("PRAGMA busy_timeout = 5000").catch(()=>undefined);
@@ -27,7 +28,7 @@ function enqueueWrite<T>(operation:()=>Promise<T>):Promise<T> {
 }
 
 export async function loadSettings(): Promise<ParishSettings> {
-  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url,receipt_show_address,receipt_show_contacts,receipt_show_priest,receipt_show_offerer,receipt_show_intention,receipt_show_mass,receipt_show_offering,receipt_custom_message,receipt_custom_width_mm,receipt_custom_height_mm,backup_frequency_hours,online_backup_enabled,online_backup_provider,online_backup_account_email,online_backup_encryption_enabled FROM parish_settings WHERE id=1");
+  const rows = await (await db()).select<ParishSettings[]>("SELECT parish_name,address,phone,email,default_offering_cents,max_intentions_per_mass,receipt_paper_size,priest_first_name,priest_last_name,primary_color,accent_color,logo_data_url,receipt_show_address,receipt_show_contacts,receipt_show_priest,receipt_show_offerer,receipt_show_intention,receipt_show_mass,receipt_show_offering,receipt_custom_message,receipt_custom_width_mm,receipt_custom_height_mm,memo_thermal_font_scale,backup_frequency_hours,online_backup_enabled,online_backup_provider,online_backup_account_email,online_backup_encryption_enabled FROM parish_settings WHERE id=1");
   return {...defaults,...rows[0]};
 }
 export async function saveSettings(v: ParishSettings) {
@@ -39,6 +40,7 @@ export async function saveSettings(v: ParishSettings) {
   await (await db()).execute("UPDATE parish_settings SET priest_first_name=$1,priest_last_name=$2,primary_color=$3,accent_color=$4,logo_data_url=$5 WHERE id=1",[v.priest_first_name,v.priest_last_name,v.primary_color,v.accent_color,v.logo_data_url]);
   await (await db()).execute("UPDATE parish_settings SET receipt_show_address=$1,receipt_show_contacts=$2,receipt_show_priest=$3,receipt_show_offerer=$4,receipt_show_intention=$5,receipt_show_mass=$6,receipt_show_offering=$7,receipt_custom_message=$8 WHERE id=1",[v.receipt_show_address??1,v.receipt_show_contacts??1,v.receipt_show_priest??1,v.receipt_show_offerer??1,v.receipt_show_intention??1,v.receipt_show_mass??1,v.receipt_show_offering??1,v.receipt_custom_message??"Grazie"]);
   await (await db()).execute("UPDATE parish_settings SET receipt_custom_width_mm=$1,receipt_custom_height_mm=$2 WHERE id=1",[v.receipt_custom_width_mm??0,v.receipt_custom_height_mm??0]);
+  await (await db()).execute("UPDATE parish_settings SET memo_thermal_font_scale=$1 WHERE id=1",[v.memo_thermal_font_scale??115]);
   await (await db()).execute("UPDATE parish_settings SET backup_frequency_hours=$1,online_backup_enabled=$2,online_backup_provider=$3,online_backup_account_email=$4,online_backup_encryption_enabled=$5 WHERE id=1",[v.backup_frequency_hours??6,v.online_backup_enabled??0,v.online_backup_provider??"google_drive",v.online_backup_account_email??"",v.online_backup_encryption_enabled??1]);
 }
 

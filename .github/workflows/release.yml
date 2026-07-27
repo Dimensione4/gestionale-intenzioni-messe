@@ -46,13 +46,13 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Gestionale Intenzioni Messe ${{ github.ref_name }}"
           releaseBody: |
-            In questa versione sono stati migliorati il controllo degli aggiornamenti e la stampa dei promemoria.
+            In questa versione e stata migliorata la stampa dei promemoria per stampantina 80 mm.
 
             Cosa cambia:
-            - messaggio di aggiornamento piu chiaro, senza dettagli tecnici;
-            - promemoria per stampantina 80 mm piu compatto, con margini corretti;
-            - controllo dei dati prima del salvataggio, cosi ogni messa ha data, ora e persona ricordata;
-            - anteprima del promemoria prima del salvataggio definitivo, con possibilita di tornare indietro e correggere.
+            - margini piu equilibrati a sinistra e a destra sul formato 80 mm;
+            - scritte del promemoria piu leggibili;
+            - nuova regolazione della grandezza testo in Impostazioni, Configuratore ricevuta;
+            - anteprima realistica del promemoria prima di salvare la configurazione.
 
             Per aggiornare, apri il gestionale e premi "Controlla aggiornamenti", poi "Scarica il nuovo aggiornamento".
           releaseDraft: false

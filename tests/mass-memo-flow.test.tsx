@@ -139,9 +139,11 @@ describe("promemoria celebrazione messe", () => {
     const modalCss = readFileSync("src/modal.css", "utf8");
 
     expect(css).toContain(".memo-print.thermal { width: 72mm;");
-    expect(css).toContain(".memo-print.thermal table { font-size: 8.2px;");
-    expect(css).toContain(".memo-print.thermal th { font-size: 6.8px;");
+    expect(css).toContain(".memo-print.thermal table { font-size: calc(8.2px * var(--memo-font-scale, 1.15));");
+    expect(css).toContain(".memo-print.thermal th { font-size: calc(6.8px * var(--memo-font-scale, 1.15));");
     expect(css).toContain(".memo-print.thermal .memo-offering-col { width: 10mm; }");
+    expect(css).toContain(".memo-print-config");
+    expect(modalCss).toContain("body:has(.memo-preview-dialog) .memo-print { position: static; left: auto; top: auto; margin: 0 auto;");
     expect(modalCss).toContain(".memo-print.thermal { width: 72mm; }");
   });
 
