@@ -174,8 +174,12 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .memo-print-config { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(360px, 1fr); gap: 22px; align-items: start; margin: 18px 0 6px; }
 .memo-print-config label { display: grid; gap: 10px; font-weight: 700; }
 .memo-print-config input[type="range"] { min-height: 36px; padding: 0; accent-color: var(--primary); }
+.memo-default-options { margin-bottom: 14px; }
 .memo-settings-preview { display: grid; place-items: start center; padding: 18px; background: #f4f5f6; border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; }
 .memo-settings-preview .memo-print.thermal { margin: 0 auto; box-shadow: 0 0 0 1px #d9d9d9, 0 10px 24px #0001; }
+.memo-default-options:has(input:not(:checked)) + .memo-print-config .memo-settings-preview .memo-notes-col,
+.memo-default-options:has(input:not(:checked)) + .memo-print-config .memo-settings-preview th:nth-child(4),
+.memo-default-options:has(input:not(:checked)) + .memo-print-config .memo-settings-preview td:nth-child(4) { display: none; }
 .danger-zone { margin-top: 36px; padding: 22px; border: 1px solid #d7a4a7; border-radius: 10px; background: #fff7f7; }
 .danger-zone h3 { color: var(--danger); }
 .schedule-editor { display: grid; gap: 12px; margin: 24px 0; }
@@ -263,6 +267,7 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .memo-remove-button svg { width: 22px; height: 22px; }
 .memo-actions { margin-top: 28px; padding-top: 22px; border-top: 3px solid color-mix(in srgb, var(--primary) 70%, var(--accent)); }
 .memo-preview-dialog .memo-actions { margin-top: 30px; }
+.memo-print-toggles { display: flex; flex-wrap: wrap; gap: 14px 22px; }
 .memo-print { color: #111; background: #fff; }
 .memo-print.a4 { width: 100%; }
 .memo-print.thermal { width: 72mm; max-width: 100%; margin-inline: auto; font-size: calc(10px * var(--memo-font-scale, 1.15)); }
@@ -275,12 +280,25 @@ section > header { display: flex; justify-content: space-between; align-items: c
 .memo-print table { width: 100%; border-collapse: collapse; table-layout: fixed; font: 15px Arial, sans-serif; }
 .memo-print th, .memo-print td { padding: 10px; border: 1px solid #333; text-align: left; vertical-align: top; }
 .memo-print th { background: #f1f1f1; text-transform: uppercase; font-size: 13px; }
-.memo-print.thermal .memo-date-col { width: 16mm; }
-.memo-print.thermal .memo-time-col { width: 10mm; }
-.memo-print.thermal .memo-person-col { width: 28mm; }
-.memo-print.thermal .memo-notes-col { width: 18mm; }
-.memo-print.thermal table.with-offering .memo-person-col { width: 23mm; }
-.memo-print.thermal table.with-offering .memo-notes-col { width: 13mm; }
+.memo-print.thermal .memo-date-col { width: 15mm; }
+.memo-print.thermal .memo-time-col { width: 9mm; }
+.memo-print.thermal .memo-person-col { width: 48mm; }
+.memo-print.thermal .memo-notes-col { width: 10mm; }
+.memo-print.thermal table.with-offering .memo-date-col { width: 14mm; }
+.memo-print.thermal table.with-offering .memo-time-col { width: 8mm; }
+.memo-print.thermal table.with-offering .memo-person-col { width: 31mm; }
+.memo-print.thermal table.with-offering .memo-notes-col { width: 9mm; }
+.memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print .memo-notes-col,
+.memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print th:nth-child(4),
+.memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print td:nth-child(4) { display: none; }
+.memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print.thermal .memo-date-col,
+.memo-default-options:has(input:not(:checked)) + .memo-print-config .memo-print.thermal .memo-date-col { width: 14mm; }
+.memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print.thermal .memo-time-col,
+.memo-default-options:has(input:not(:checked)) + .memo-print-config .memo-print.thermal .memo-time-col { width: 9mm; }
+.memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print.thermal .memo-person-col,
+.memo-default-options:has(input:not(:checked)) + .memo-print-config .memo-print.thermal .memo-person-col { width: 49mm; }
+.memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print.thermal table.with-offering .memo-person-col,
+.memo-default-options:has(input:not(:checked)) + .memo-print-config .memo-print.thermal table.with-offering .memo-person-col { width: 39mm; }
 .memo-print.thermal .memo-offering-col { width: 10mm; }
 .memo-print.thermal table { font-size: calc(8.2px * var(--memo-font-scale, 1.15)); line-height: 1.16; }
 .memo-print.thermal th, .memo-print.thermal td { padding: 3px 2px; overflow-wrap: anywhere; }

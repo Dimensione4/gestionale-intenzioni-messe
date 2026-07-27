@@ -712,6 +712,10 @@ fn current_migration_checksums() -> Vec<(i64, [u8; 48])> {
             10,
             include_str!("../migrations/010_memo_print_settings.sql"),
         ),
+        (
+            11,
+            include_str!("../migrations/011_memo_notes_print_default.sql"),
+        ),
     ]
     .into_iter()
     .map(|(version, sql)| {
@@ -846,6 +850,12 @@ pub fn run() {
                             version: 10,
                             description: "memo print settings",
                             sql: include_str!("../migrations/010_memo_print_settings.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 11,
+                            description: "memo notes print default",
+                            sql: include_str!("../migrations/011_memo_notes_print_default.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
                     ],

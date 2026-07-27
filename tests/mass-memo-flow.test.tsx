@@ -132,6 +132,9 @@ describe("promemoria celebrazione messe", () => {
     expect(dialog.querySelector("[data-memo-page-size]")?.textContent).toContain("80mm 200mm");
     expect(within(dialog).getByRole("columnheader", { name: /^data$/i })).toBeInTheDocument();
     expect(within(dialog).getByRole("columnheader", { name: /^ricordo$/i })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/mostra note/i)).not.toBeChecked();
+    expect(within(dialog).getByRole("columnheader", { name: /note/i })).toBeInTheDocument();
+    expect(readFileSync("src/styles.css", "utf8")).toContain(".memo-preview-dialog:has(#memo-show-notes:not(:checked)) .memo-print th:nth-child(4)");
   });
 
   it("compatta il promemoria termico per non ritagliare la tabella sugli 80 mm", () => {
