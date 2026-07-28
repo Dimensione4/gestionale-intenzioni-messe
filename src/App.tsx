@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -317,7 +318,7 @@ function PrintIntentionsDialog({month,repository,close}:{month:Date;repository:I
   const monthStart=format(startOfMonth(month),"yyyy-MM-dd"),monthEnd=format(endOfMonth(month),"yyyy-MM-dd");
   const [period,setPeriod]=useState<"day"|"week"|"month"|"range">("week"),[from,setFrom]=useState(monthStart),[to,setTo]=useState(monthEnd),[weekDay,setWeekDay]=useState(format(month,"yyyy-MM-dd")),[offerings,setOfferings]=useState(false),[printFormat,setPrintFormat]=useState<PrintFormat>("a4"),[items,setItems]=useState<MassIntention[]>([]),[printing,setPrinting]=useState(false),[error,setError]=useState("");
   const bounds=()=>period==="day"?[from,from]:period==="week"?[format(startOfWeek(new Date(`${weekDay}T12:00:00`),{weekStartsOn:1}),"yyyy-MM-dd"),format(endOfWeek(new Date(`${weekDay}T12:00:00`),{weekStartsOn:1}),"yyyy-MM-dd")]:period==="month"?[monthStart,monthEnd]:[from,to];
-  async function print(){setError("");const [start,end]=bounds();if(start>end)return setError("La data iniziale deve precedere quella finale.");setPrinting(true);try{setItems(await repository.list(start,end));setTimeout(()=>window.print(),50)}catch(e){setError(String(e))}finally{setPrinting(false)}}
+  async function print(){setError("");const [start,end]=bounds();if(start>end)return setError("La data iniziale deve precedere quella finale.");setPrinting(true);try{const nextItems=await repository.list(start,end);flushSync(()=>setItems(nextItems));requestAnimationFrame(()=>window.print())}catch(e){setError(String(e))}finally{setPrinting(false)}}
   return <div className="modal-backdrop"><div className="dialog print-dialog" role="dialog" aria-modal="true" aria-labelledby="print-title">
     <style data-report-page-size>{`@media print { @page { size: ${printFormat==="a4"?"A4 portrait":"80mm 200mm"}; margin: ${printFormat==="a4"?"12mm":"3mm"}; } }`}</style>
     <div className="dialog-head no-print"><div><p className="eyebrow">Stampa</p><h2 id="print-title">Stampa elenco intenzioni</h2></div><button onClick={close}>Chiudi ×</button></div>

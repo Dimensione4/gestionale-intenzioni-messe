@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { format } from "date-fns";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Calendar } from "../src/App";
 import type { MassIntention, NewIntention, ParishSettings } from "../src/lib/db";
@@ -47,6 +48,30 @@ describe("viste e stampa mensile",()=>{
     await waitFor(()=>expect(print).toHaveBeenCalled());
     expect(within(dialog).getByText("€ 15.00")).toBeInTheDocument();
   });
+  it("aggiorna il report prima di aprire la stampa del periodo selezionato",async()=>{
+    const print=vi.spyOn(window,"print").mockImplementation(()=>undefined);
+    const repo={
+      ...repository(),
+      list:vi.fn(async(from:string,to:string)=>[
+        {...record,id:11,mass_date:from,mass_time:"08:00",remembered_person:"Prima persona",intention_text:"Prima persona"},
+        {...record,id:12,mass_date:to,mass_time:"20:30",remembered_person:"Ultima persona",intention_text:"Ultima persona"},
+      ]),
+    };
+    render(<Calendar repository={repo}/>);
+    fireEvent.click(screen.getByRole("button",{name:/stampa elenco/i}));
+    const dialog=screen.getByRole("dialog",{name:/stampa elenco intenzioni/i});
+    fireEvent.click(within(dialog).getByLabelText(/intervallo personalizzato/i));
+    fireEvent.change(within(dialog).getByLabelText(/^dal giorno$/i),{target:{value:"2026-07-18"}});
+    fireEvent.change(within(dialog).getByLabelText(/^al giorno$/i),{target:{value:"2026-07-31"}});
+    fireEvent.click(within(dialog).getByRole("button",{name:/stampa elenco/i}));
+
+    await waitFor(()=>expect(print).toHaveBeenCalled());
+    expect(repo.list).toHaveBeenLastCalledWith("2026-07-18","2026-07-31");
+    expect(within(dialog).getAllByText("Prima persona")).toHaveLength(2);
+    expect(within(dialog).getAllByText("Ultima persona")).toHaveLength(2);
+    expect(within(dialog).getByText("Periodo: dal 2026-07-18 al 2026-07-31")).toBeInTheDocument();
+  });
+
   it("prevede stampa settimanale e formato stampantina",async()=>{
     const repo=repository(),print=vi.spyOn(window,"print").mockImplementation(()=>undefined);
     render(<Calendar repository={repo}/>);
@@ -60,5 +85,15 @@ describe("viste e stampa mensile",()=>{
     await waitFor(()=>expect(print).toHaveBeenCalled());
     expect(dialog.querySelector(".print-report.thermal")).toBeTruthy();
     expect(dialog.querySelector("[data-report-page-size]")?.textContent).toContain("80mm 200mm");
+  });
+
+  it("isola il report di stampa e non ripete l'intestazione della tabella su ogni pagina",()=>{
+    const modalCss=readFileSync("src/modal.css","utf8");
+    const styles=readFileSync("src/styles.css","utf8");
+
+    expect(modalCss).toContain("body:has(.print-dialog) .modal-backdrop { position: static;");
+    expect(modalCss).toContain("body:has(.print-dialog) .print-report { position: static;");
+    expect(modalCss).not.toContain(".print-report { display: block; position: absolute;");
+    expect(styles).toContain(".print-report thead { display: table-row-group; }");
   });
 });

@@ -46,13 +46,13 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Gestionale Intenzioni Messe ${{ github.ref_name }}"
           releaseBody: |
-            In questa versione e stata migliorata la stampa dei promemoria delle messe.
+            In questa versione e stata corretta la stampa dell'elenco intenzioni.
 
             Cosa cambia:
-            - le note del promemoria sono opzionali e di default non vengono stampate;
-            - quando le note sono nascoste, la colonna "Ricordo" usa piu spazio;
-            - in Impostazioni, Configuratore ricevuta, puoi scegliere se mostrare le note di default;
-            - resta disponibile la scelta manuale nella schermata di stampa del promemoria.
+            - l'intestazione della tabella non viene piu ripetuta su ogni pagina;
+            - la stampa dell'elenco usa solo il report corretto, senza duplicare la pagina;
+            - quando scegli un periodo, il report viene aggiornato prima di aprire la stampa;
+            - restano disponibili stampa A4, settimanale, mensile e per intervallo.
 
             Per aggiornare, apri il gestionale e premi "Controlla aggiornamenti", poi "Scarica il nuovo aggiornamento".
           releaseDraft: false
